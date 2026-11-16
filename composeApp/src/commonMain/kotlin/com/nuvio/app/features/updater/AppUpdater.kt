@@ -49,6 +49,11 @@ class AppUpdaterController internal constructor(
     private val scope: CoroutineScope,
     private val preferences: UpdatePreferences = UpdatePreferences.shared,
     private val fetchUpdate: suspend (UpdateChannel) -> Result<AppUpdate> = AppUpdaterRepository::getLatestChannelUpdate,
+    private val downloadApk: suspend (
+        assetUrl: String,
+        assetName: String,
+        onProgress: (downloadedBytes: Long, totalBytes: Long?) -> Unit,
+    ) -> Result<String> = AppUpdaterPlatform::downloadApk,
 ) {
     private val _uiState = MutableStateFlow(AppUpdaterUiState(updateChannel = preferences.channel.value))
     val uiState: StateFlow<AppUpdaterUiState> = _uiState.asStateFlow()
@@ -115,6 +120,11 @@ class AppUpdaterController internal constructor(
                 val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppVersionConfig.VERSION_NAME)
                 val ignored = ignoredTag != null && ignoredTag == update.tag
                 val shouldShowDialog = remoteNewer && (force || !ignored)
+                val currentState = _uiState.value
+                val alreadyDownloaded = currentState.update?.tag == update.tag &&
+                    currentState.downloadedApkPath != null
+                val shouldAutoDownload = remoteNewer && (force || !ignored) &&
+                    !AppUpdaterPlatform.isDebugBuild && !alreadyDownloaded
 
                 _uiState.update { state ->
                     state.copy(
@@ -131,6 +141,7 @@ class AppUpdaterController internal constructor(
                         errorMessage = null,
                     )
                 }
+                if (shouldAutoDownload) downloadUpdate()
 
                 if (showNoUpdateFeedback && !remoteNewer) {
                     NuvioToastController.show(noUpdateMessage(channel))
@@ -210,9 +221,9 @@ class AppUpdaterController internal constructor(
                 )
             }
 
-            val result = AppUpdaterPlatform.downloadApk(
-                assetUrl = update.assetUrl,
-                assetName = update.assetName,
+            val result = downloadApk(
+                update.assetUrl,
+                update.assetName,
             ) { downloadedBytes, totalBytes ->
                 downloadContext.ensureActive()
                 val progress = if (totalBytes != null && totalBytes > 0L) {

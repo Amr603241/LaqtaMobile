@@ -69,6 +69,46 @@ class AppUpdaterControllerTest {
     }
 
     @Test
+    fun autoCheckDownloadsNewReleaseWithoutUserTap() {
+        val context = RuntimeEnvironment.getApplication()
+        context.applicationInfo.flags = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE.inv()
+        val downloads = mutableListOf<Pair<String, String>>()
+        val controller = controller(
+            fetch = { Result.success(update("999.0.0")) },
+            downloadApk = { assetUrl, assetName, _ ->
+                downloads += assetUrl to assetName
+                Result.failure(IllegalStateException("Download failed"))
+            },
+        )
+
+        controller.ensureAutoCheckStarted()
+
+        assertEquals(listOf("https://example.com/app.apk" to "app.apk"), downloads)
+        assertEquals("Download failed", controller.uiState.value.errorMessage)
+        assertFalse(controller.uiState.value.isDownloading)
+    }
+
+    @Test
+    fun ignoredReleaseIsNotDownloadedAutomatically() {
+        val context = RuntimeEnvironment.getApplication()
+        context.applicationInfo.flags = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE.inv()
+        AppUpdaterPlatform.setIgnoredTag("999.0.0")
+        var downloadCount = 0
+        val controller = controller(
+            fetch = { Result.success(update("999.0.0")) },
+            downloadApk = { _, _, _ ->
+                downloadCount += 1
+                Result.failure(IllegalStateException("Unexpected download"))
+            },
+        )
+
+        controller.ensureAutoCheckStarted()
+
+        assertEquals(0, downloadCount)
+        assertFalse(controller.uiState.value.showDialog)
+    }
+
+    @Test
     fun channelChangeDiscardsPendingUpdate() {
         val controller = controller { Result.success(update("999.0.0")) }
         controller.checkForUpdates(force = true, showNoUpdateFeedback = false)
@@ -127,7 +167,20 @@ class AppUpdaterControllerTest {
     }
 
     private fun controller(fetch: suspend (UpdateChannel) -> Result<AppUpdate>) =
-        AppUpdaterController(scope, preferences, fetch)
+        AppUpdaterController(
+            scope,
+            preferences,
+            fetch,
+        ) { _, _, _ -> Result.failure(IllegalStateException("Test download failure")) }
+
+    private fun controller(
+        fetch: suspend (UpdateChannel) -> Result<AppUpdate>,
+        downloadApk: suspend (
+            assetUrl: String,
+            assetName: String,
+            onProgress: (downloadedBytes: Long, totalBytes: Long?) -> Unit,
+        ) -> Result<String>,
+    ) = AppUpdaterController(scope, preferences, fetch, downloadApk)
 
     private fun update(tag: String) = AppUpdate(
         tag = tag,
