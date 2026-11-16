@@ -91,6 +91,12 @@ object SubtitleRepository {
         _error.value = null
     }
 
+    fun addImportedSubtitle(subtitle: AddonSubtitle) {
+        _addonSubtitles.update { current ->
+            (current + subtitle).distinctBy { "${it.id}|${it.url}" }
+        }
+    }
+
     private suspend fun executeSubtitleFetch(
         type: String,
         videoId: String,

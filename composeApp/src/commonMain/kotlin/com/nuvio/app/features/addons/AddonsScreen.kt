@@ -20,11 +20,15 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,8 +60,10 @@ import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioSectionLabel
 import com.nuvio.app.core.ui.NuvioStatusModal
 import com.nuvio.app.core.ui.NuvioSurfaceCard
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -95,100 +102,189 @@ internal fun AddonsSettingsPageContent(
     var formMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var installModalState by remember { mutableStateOf<AddonInstallModalState?>(null) }
     var addonPendingDeletionUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var directoryState by remember { mutableStateOf(AddonDirectoryUiState()) }
+    var directoryLoaded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedFilter by rememberSaveable { mutableStateOf(AddonDirectoryFilter.ALL) }
+    var includeAdultAddons by rememberSaveable { mutableStateOf(false) }
+    var visibleAddonCount by rememberSaveable { mutableIntStateOf(30) }
     val enterAddonUrlMessage = stringResource(Res.string.addons_error_enter_url)
     val usePersonalMediaCopy = AppFeaturePolicy.personalMediaAddonCopyEnabled
 
     val overview = remember(uiState.addons) { uiState.addons.toOverview() }
 
+    suspend fun loadDirectory() {
+        if (directoryState.isLoading) return
+        directoryState = directoryState.copy(isLoading = true, errorMessage = null)
+        try {
+            val result = AddonDirectoryRepository.load()
+            directoryState = AddonDirectoryUiState(
+                addons = result.addons,
+                invalidEntryCount = result.invalidEntryCount,
+            )
+            directoryLoaded = true
+        } catch (error: CancellationException) {
+            directoryState = directoryState.copy(isLoading = false)
+            throw error
+        } catch (error: Exception) {
+            directoryState = directoryState.copy(
+                isLoading = false,
+                errorMessage = error.message ?: getString(Res.string.addons_browse_error_unknown),
+            )
+            directoryLoaded = false
+        }
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == ADDONS_BROWSE_TAB && !directoryLoaded) {
+            loadDirectory()
+        }
+    }
+
+    LaunchedEffect(searchQuery, selectedFilter, includeAdultAddons) {
+        visibleAddonCount = ADDON_DIRECTORY_PAGE_SIZE
+    }
+
+    fun installAddon(manifestUrl: String) {
+        installModalState = AddonInstallModalState.Checking
+        coroutineScope.launch {
+            when (val result = AddonRepository.addAddon(manifestUrl)) {
+                is AddAddonResult.Success -> {
+                    addonUrl = ""
+                    installModalState = AddonInstallModalState.Success(result.manifest.name)
+                }
+
+                is AddAddonResult.TrackingConsentRequired -> {
+                    AddonRepository.requestTrackingConsent(result.manifest)
+                    installModalState = null
+                }
+
+                is AddAddonResult.Error -> {
+                    installModalState = AddonInstallModalState.Error(result.message)
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SectionHeader(stringResource(Res.string.addons_section_overview))
-        OverviewCard(overview = overview)
+        PrimaryTabRow(selectedTabIndex = selectedTab) {
+            Tab(
+                selected = selectedTab == ADDONS_MANAGE_TAB,
+                onClick = { selectedTab = ADDONS_MANAGE_TAB },
+                text = { Text(stringResource(Res.string.addons_tab_manage)) },
+            )
+            Tab(
+                selected = selectedTab == ADDONS_BROWSE_TAB,
+                onClick = { selectedTab = ADDONS_BROWSE_TAB },
+                text = { Text(stringResource(Res.string.addons_tab_browse)) },
+            )
+        }
 
-        SectionHeader(stringResource(Res.string.addons_section_add_addon))
-        AddAddonCard(
-            addonUrl = addonUrl,
-            formMessage = formMessage,
-            usePersonalMediaCopy = usePersonalMediaCopy,
-            onAddonUrlChange = {
-                addonUrl = it
-                formMessage = null
-            },
-            onAddClick = {
-                val requestedUrl = addonUrl.trim()
-                if (requestedUrl.isBlank()) {
-                    formMessage = enterAddonUrlMessage
-                    return@AddAddonCard
-                }
+        if (selectedTab == ADDONS_MANAGE_TAB) {
+            SectionHeader(stringResource(Res.string.addons_section_overview))
+            OverviewCard(overview = overview)
 
-                formMessage = null
-                installModalState = AddonInstallModalState.Checking
-                coroutineScope.launch {
-                    val result = AddonRepository.addAddon(requestedUrl)
-                    installModalState = when (result) {
-                        is AddAddonResult.Success -> {
-                            addonUrl = ""
-                            AddonInstallModalState.Success(result.manifest.name)
-                        }
-
-                        is AddAddonResult.TrackingConsentRequired -> {
-                            AddonRepository.requestTrackingConsent(result.manifest)
-                            null
-                        }
-
-                        is AddAddonResult.Error -> {
-                            AddonInstallModalState.Error(result.message)
-                        }
+            SectionHeader(stringResource(Res.string.addons_section_add_addon))
+            AddAddonCard(
+                addonUrl = addonUrl,
+                formMessage = formMessage,
+                usePersonalMediaCopy = usePersonalMediaCopy,
+                onAddonUrlChange = {
+                    addonUrl = it
+                    formMessage = null
+                },
+                onAddClick = {
+                    val requestedUrl = addonUrl.trim()
+                    if (requestedUrl.isBlank()) {
+                        formMessage = enterAddonUrlMessage
+                    } else {
+                        formMessage = null
+                        installAddon(requestedUrl)
                     }
-                }
-            },
-        )
+                },
+            )
 
-        SectionHeader(stringResource(Res.string.addons_section_installed))
-        if (uiState.addons.isEmpty()) {
-            EmptyStateCard(usePersonalMediaCopy = usePersonalMediaCopy)
-        } else {
-            val lastIndex = uiState.addons.lastIndex
-            uiState.addons.forEachIndexed { index, addon ->
-                val manifest = addon.manifest
-                val behaviorHints = manifest?.behaviorHints
-                val showConfigureAction = behaviorHints?.configurable == true || behaviorHints?.configurationRequired == true
-                val configureUrl = addon.manifestUrl.toConfigureUrl()
-                InstalledAddonCard(
-                    addon = addon,
-                    onMoveUpClick = if (index > 0) {
-                        { AddonRepository.moveAddon(index, index - 1) }
-                    } else {
-                        null
-                    },
-                    onMoveDownClick = if (index < lastIndex) {
-                        { AddonRepository.moveAddon(index, index + 1) }
-                    } else {
-                        null
-                    },
-                    onRefreshClick = {
-                        AddonRepository.refreshAddon(
-                            manifestUrl = addon.manifestUrl,
-                            forceRefresh = true,
-                        )
-                    },
-                    onEnabledChange = { enabled ->
-                        AddonRepository.setAddonEnabled(addon.manifestUrl, enabled)
-                    },
-                    onConfigureClick = if (showConfigureAction && !configureUrl.isNullOrBlank()) {
-                        {
-                            runCatching {
-                                uriHandler.openUri(configureUrl)
+            SectionHeader(stringResource(Res.string.addons_section_installed))
+            if (uiState.addons.isEmpty()) {
+                EmptyStateCard(usePersonalMediaCopy = usePersonalMediaCopy)
+            } else {
+                val lastIndex = uiState.addons.lastIndex
+                uiState.addons.forEachIndexed { index, addon ->
+                    val manifest = addon.manifest
+                    val behaviorHints = manifest?.behaviorHints
+                    val showConfigureAction = behaviorHints?.configurable == true || behaviorHints?.configurationRequired == true
+                    val configureUrl = addon.manifestUrl.toConfigureUrl()
+                    InstalledAddonCard(
+                        addon = addon,
+                        onMoveUpClick = if (index > 0) {
+                            { AddonRepository.moveAddon(index, index - 1) }
+                        } else {
+                            null
+                        },
+                        onMoveDownClick = if (index < lastIndex) {
+                            { AddonRepository.moveAddon(index, index + 1) }
+                        } else {
+                            null
+                        },
+                        onRefreshClick = {
+                            AddonRepository.refreshAddon(
+                                manifestUrl = addon.manifestUrl,
+                                forceRefresh = true,
+                            )
+                        },
+                        onEnabledChange = { enabled ->
+                            AddonRepository.setAddonEnabled(addon.manifestUrl, enabled)
+                        },
+                        onConfigureClick = if (showConfigureAction && !configureUrl.isNullOrBlank()) {
+                            {
+                                runCatching {
+                                    uriHandler.openUri(configureUrl)
+                                }
                             }
-                        }
-                    } else {
-                        null
-                    },
-                    onDeleteClick = { addonPendingDeletionUrl = addon.manifestUrl },
+                        } else {
+                            null
+                        },
+                        onDeleteClick = { addonPendingDeletionUrl = addon.manifestUrl },
+                    )
+                }
+            }
+        } else {
+            val filteredAddons = remember(
+                directoryState.addons,
+                searchQuery,
+                selectedFilter,
+                includeAdultAddons,
+            ) {
+                filterAddonDirectory(
+                    addons = directoryState.addons,
+                    query = searchQuery,
+                    filter = selectedFilter,
+                    includeAdult = includeAdultAddons,
                 )
             }
+            AddonDirectoryContent(
+                state = directoryState,
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                selectedFilter = selectedFilter,
+                onFilterChange = { selectedFilter = it },
+                includeAdultAddons = includeAdultAddons,
+                onIncludeAdultAddonsChange = { includeAdultAddons = it },
+                visibleAddonCount = visibleAddonCount,
+                onLoadMore = { visibleAddonCount += ADDON_DIRECTORY_PAGE_SIZE },
+                onRefresh = {
+                    coroutineScope.launch { loadDirectory() }
+                },
+                installedManifestUrls = remember(uiState.addons) {
+                    uiState.addons.mapTo(mutableSetOf()) { it.manifestUrl }
+                },
+                filteredAddons = filteredAddons,
+                onInstall = ::installAddon,
+            )
         }
     }
 
@@ -267,6 +363,236 @@ internal fun AddonsSettingsPageContent(
     }
 }
 
+private const val ADDONS_MANAGE_TAB = 0
+private const val ADDONS_BROWSE_TAB = 1
+private const val ADDON_DIRECTORY_PAGE_SIZE = 30
+
+private data class AddonDirectoryUiState(
+    val addons: List<AddonManifest> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val invalidEntryCount: Int = 0,
+)
+
+@Composable
+private fun AddonDirectoryContent(
+    state: AddonDirectoryUiState,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectedFilter: AddonDirectoryFilter,
+    onFilterChange: (AddonDirectoryFilter) -> Unit,
+    includeAdultAddons: Boolean,
+    onIncludeAdultAddonsChange: (Boolean) -> Unit,
+    visibleAddonCount: Int,
+    onLoadMore: () -> Unit,
+    onRefresh: () -> Unit,
+    installedManifestUrls: Set<String>,
+    filteredAddons: List<AddonManifest>,
+    onInstall: (String) -> Unit,
+) {
+    SectionHeader(stringResource(Res.string.addons_browse_title))
+    NuvioSurfaceCard {
+        Text(
+            text = stringResource(Res.string.addons_browse_disclaimer),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        NuvioInputField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = stringResource(Res.string.addons_browse_search),
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            AddonDirectoryFilter.entries.forEach { filter ->
+                FilterChip(
+                    selected = selectedFilter == filter,
+                    onClick = { onFilterChange(filter) },
+                    label = {
+                        Text(
+                            stringResource(
+                                when (filter) {
+                                    AddonDirectoryFilter.ALL -> Res.string.addons_browse_filter_all
+                                    AddonDirectoryFilter.CATALOGS -> Res.string.addons_browse_filter_catalogs
+                                    AddonDirectoryFilter.STREAMS -> Res.string.addons_browse_filter_streams
+                                    AddonDirectoryFilter.SUBTITLES -> Res.string.addons_browse_filter_subtitles
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(
+                checked = includeAdultAddons,
+                onCheckedChange = onIncludeAdultAddonsChange,
+            )
+            Text(
+                text = stringResource(Res.string.addons_browse_include_adult),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = stringResource(
+                    Res.string.addons_browse_count,
+                    minOf(visibleAddonCount, filteredAddons.size),
+                    filteredAddons.size,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            NuvioIconActionButton(
+                icon = Icons.Rounded.Refresh,
+                contentDescription = stringResource(Res.string.addons_browse_refresh),
+                tint = MaterialTheme.colorScheme.primary,
+                onClick = onRefresh,
+            )
+        }
+    }
+
+    when {
+        state.isLoading -> {
+            NuvioSurfaceCard {
+                Text(
+                    text = stringResource(Res.string.addons_browse_loading),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        state.errorMessage != null -> {
+            NuvioSurfaceCard {
+                Text(
+                    text = state.errorMessage,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                NuvioPrimaryButton(
+                    text = stringResource(Res.string.action_retry),
+                    onClick = onRefresh,
+                )
+            }
+        }
+
+        filteredAddons.isEmpty() -> {
+            NuvioSurfaceCard {
+                Text(
+                    text = stringResource(Res.string.addons_browse_no_results),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        else -> {
+            filteredAddons.take(visibleAddonCount).forEach { addon ->
+                AddonDirectoryCard(
+                    manifest = addon,
+                    isInstalled = addon.transportUrl in installedManifestUrls,
+                    onInstall = { onInstall(addon.transportUrl) },
+                )
+            }
+            if (filteredAddons.size > visibleAddonCount) {
+                NuvioPrimaryButton(
+                    text = stringResource(Res.string.addons_browse_load_more),
+                    onClick = onLoadMore,
+                )
+            }
+        }
+    }
+
+    if (state.invalidEntryCount > 0) {
+        Text(
+            text = stringResource(Res.string.addons_browse_invalid_entries, state.invalidEntryCount),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun AddonDirectoryCard(
+    manifest: AddonManifest,
+    isInstalled: Boolean,
+    onInstall: () -> Unit,
+) {
+    NuvioSurfaceCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            AddonIconBadge(
+                imageUrl = manifest.logoUrl,
+                icon = Icons.Rounded.Extension,
+                tint = Color(0xFF71BDE8),
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = manifest.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = manifest.description.ifBlank {
+                        stringResource(Res.string.addons_browse_no_description)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = manifestSummary(manifest),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (manifest.behaviorHints.adult) {
+                NuvioInfoBadge(text = stringResource(Res.string.addons_browse_adult_badge))
+            }
+            if (manifest.behaviorHints.p2p) {
+                NuvioInfoBadge(text = "P2P")
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        NuvioPrimaryButton(
+            text = stringResource(
+                if (isInstalled) {
+                    Res.string.addons_browse_installed
+                } else {
+                    Res.string.addons_browse_add
+                },
+            ),
+            enabled = !isInstalled,
+            onClick = onInstall,
+        )
+    }
+}
 @Composable
 private fun SectionHeader(text: String) {
     NuvioSectionLabel(text = text)

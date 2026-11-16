@@ -15,9 +15,9 @@ class ThemeAccessTest {
     }
 
     @Test
-    fun unavailableSupporterThemeFallsBackToWhite() {
+    fun unavailableSupporterThemeFallsBackToBrandTheme() {
         assertEquals(
-            AppTheme.WHITE,
+            AppTheme.AMBER,
             resolveAppTheme(AppTheme.JADE, CosmeticEntitlements.None),
         )
     }
@@ -39,7 +39,7 @@ class ThemeAccessTest {
 
         assertEquals(AppTheme.CUSTOM, themes.first())
         assertEquals(AppTheme.CUSTOM, resolveAppTheme(AppTheme.CUSTOM, CosmeticEntitlements.None))
-        assertEquals(AppTheme.WHITE, resolveAppTheme(null, CosmeticEntitlements.None))
+        assertEquals(AppTheme.AMBER, resolveAppTheme(null, CosmeticEntitlements.None))
     }
 
     @Test

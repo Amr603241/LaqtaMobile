@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="subtitle_search_addons">البحث في إضافات الترجمة</string>
+    <string name="subtitle_add_from_url">إضافة من رابط</string>
+    <string name="subtitle_import_from_device">اختيار ملف ترجمة</string>
+    <string name="subtitle_url_dialog_title">إضافة ترجمة من رابط</string>
+    <string name="subtitle_url_placeholder">رابط مباشر لملف الترجمة</string>
+    <string name="subtitle_language_placeholder">رمز اللغة (مثال: ar أو en)</string>
+    <string name="subtitle_add_action">إضافة الترجمة</string>
+    <string name="subtitle_download_failed">تعذر تنزيل الترجمة.</string>
+    <string name="subtitle_invalid_or_unsupported">ملف الترجمة غير صالح أو غير مدعوم.</string>
     <string name="theme_gold">ذهبي</string>
     <string name="theme_jade">يشمي</string>
     <string name="theme_rose_gold">ذهبي وردي</string>
@@ -76,6 +85,27 @@
     <string name="addons_section_installed">الإضافات المثبتة</string>
     <string name="addons_section_overview">نظرة عامة</string>
     <string name="addons_summary_id_rules">%1$d قاعدة للمعرّفات</string>
+    <string name="addons_tab_manage">المثبتة</string>
+    <string name="addons_tab_browse">تصفح</string>
+    <string name="addons_browse_title">إضافات المجتمع</string>
+    <string name="addons_browse_disclaimer">إضافات المجتمع مقدمة من جهات خارجية. راجع كل إضافة قبل تثبيتها.</string>
+    <string name="addons_browse_search">البحث في الإضافات</string>
+    <string name="addons_browse_filter_all">الكل</string>
+    <string name="addons_browse_filter_catalogs">الكتالوجات</string>
+    <string name="addons_browse_filter_streams">البث</string>
+    <string name="addons_browse_filter_subtitles">الترجمات</string>
+    <string name="addons_browse_include_adult">تضمين إضافات البالغين</string>
+    <string name="addons_browse_count">عرض %1$d من %2$d</string>
+    <string name="addons_browse_refresh">تحديث دليل الإضافات</string>
+    <string name="addons_browse_loading">جارٍ تحميل دليل إضافات المجتمع…</string>
+    <string name="addons_browse_no_results">لا توجد إضافات تطابق البحث والتصفية.</string>
+    <string name="addons_browse_error_unknown">تعذر تحميل دليل الإضافات.</string>
+    <string name="addons_browse_invalid_entries">تم تجاهل %1$d إدخال غير صالح في الدليل.</string>
+    <string name="addons_browse_load_more">تحميل المزيد</string>
+    <string name="addons_browse_no_description">لا يوجد وصف.</string>
+    <string name="addons_browse_adult_badge">للبالغين</string>
+    <string name="addons_browse_add">إضافة</string>
+    <string name="addons_browse_installed">مثبتة</string>
     <string name="addons_version_format">الإصدار %1$s</string>
     <string name="cd_selected">محدد</string>
     <string name="collections_copy_json">نسخ JSON</string>
@@ -1763,7 +1793,7 @@
     <string name="addon_already_installed">هذه الإضافة مثبتة بالفعل.</string>
     <string name="addon_invalid_url">أدخل رابط إضافة صالحًا</string>
     <string name="addon_load_manifest_failed">تعذر تحميل Manifest</string>
-    <string name="app_brand_name">Nuvio</string>
+    <string name="app_brand_name">لَقطة</string>
     <string name="auth_account_deletion_failed">فشل حذف الحساب</string>
     <string name="auth_sign_in_failed">فشل تسجيل الدخول</string>
     <string name="auth_sign_out_failed">فشل تسجيل الخروج</string>

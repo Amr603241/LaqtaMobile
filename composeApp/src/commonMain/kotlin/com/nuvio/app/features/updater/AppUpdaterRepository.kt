@@ -10,6 +10,8 @@ import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.updates_github_api_error
 import org.jetbrains.compose.resources.getString
 
+private const val GitHubRepositoryApiUrl = "https://api.github.com/repos/Amr603241/LaqtaMobile"
+
 @Serializable
 internal data class GitHubReleaseDto(
     @SerialName("tag_name") val tagName: String? = null,
@@ -40,10 +42,10 @@ internal object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(channel: UpdateChannel): Result<AppUpdate> = runCatching {
         val response = httpRequestRaw(
             method = "GET",
-            url = "https://api.github.com/repos/NuvioMedia/NuvioMobile/${releasePath(channel)}",
+            url = releaseUrl(channel),
             headers = mapOf(
                 "Accept" to "application/vnd.github+json",
-                "User-Agent" to "NuvioMobile",
+                "User-Agent" to "LaqtaMobile",
             ),
             body = "",
         )
@@ -60,6 +62,9 @@ internal object AppUpdaterRepository {
         UpdateChannel.STABLE -> "releases/latest"
         UpdateChannel.BETA -> "releases?per_page=100"
     }
+
+    internal fun releaseUrl(channel: UpdateChannel): String =
+        "$GitHubRepositoryApiUrl/${releasePath(channel)}"
 
     internal fun selectUpdate(
         responseBody: String,

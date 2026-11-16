@@ -1,11 +1,51 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.i18n.localizedNoSubtitleLinesFound
 import com.nuvio.app.core.i18n.localizedSubtitleLinesLoadError
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.autosync.AutoSyncPlayerController
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.subtitle_download_failed
+import nuvio.composeapp.generated.resources.subtitle_invalid_or_unsupported
+import org.jetbrains.compose.resources.getString
+
+internal fun PlayerScreenRuntime.addSubtitleFromUrl(url: String, language: String) {
+    if (!isHttpSubtitleUrl(url)) {
+        scope.launch { NuvioToastController.show(getString(Res.string.subtitle_invalid_or_unsupported)) }
+        return
+    }
+    scope.launch {
+        try {
+            val text = withTimeoutOrNull(15_000L) {
+                httpGetTextWithHeaders(url.trim(), emptyMap())
+            } ?: error(getString(Res.string.subtitle_download_failed))
+            val subtitle = importedSubtitleFromText(
+                id = "url:${url.trim()}",
+                name = url.substringAfterLast('/').substringBefore('?').ifBlank { "Subtitle" },
+                url = url.trim(),
+                language = language,
+                text = text,
+            ) ?: error(getString(Res.string.subtitle_invalid_or_unsupported))
+            val extension = PlayerSubtitleCueParser.fileExtension(text, url)
+            val fileName = "${subtitle.display.substringBeforeLast('.', subtitle.display)}.$extension"
+            val localUri = SubtitleImportStorage.save(fileName, text.encodeToByteArray())
+            addImportedSubtitle(subtitle.copy(id = localUri, url = localUri))
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            NuvioToastController.show(error.message ?: getString(Res.string.subtitle_download_failed))
+        }
+    }
+}
+
+internal fun PlayerScreenRuntime.addImportedSubtitle(subtitle: AddonSubtitle) {
+    SubtitleRepository.addImportedSubtitle(subtitle)
+    selectAddonSubtitle(subtitle)
+}
 
 internal fun PlayerScreenRuntime.fetchAddonSubtitlesForActiveItem() {
     if (activeSourceUrl.startsWith("file:") && externalSubtitles.isNotEmpty()) {

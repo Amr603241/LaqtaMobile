@@ -1,28 +1,16 @@
-<div align="center">
+# لقطة | Laqta
 
-  <img src="https://nuvio.tv/assets/nuvio-app-logo-wordmark.webp" alt="Nuvio" width="320" />
+Laqta is a customized media app maintained in this repository. It is derived from the open-source [NuvioMobile project](https://github.com/NuvioMedia/NuvioMobile); original license notices and contributor history are retained.
 
-  <p>
-    A free, open-source media app for your phone, your desktop, and the TV you already own.
-    <br />
-    Bring your own sources. Nuvio turns them into a library with artwork, ratings, subtitles, and your place saved on every screen.
-  </p>
+## Downloads
 
-  [Website](https://nuvio.tv) · [GitHub releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest) · [Support Nuvio](https://nuvio.tv/support)
-
-</div>
-
-## Get Nuvio Mobile
-
-- [Android on Google Play](https://play.google.com/store/apps/details?id=com.nuvio.app)
-- [Android APK](https://github.com/NuvioMedia/NuvioMobile/releases/latest)
-- iOS via AltStore or SideStore: add [this source URL](https://raw.githubusercontent.com/NuvioMedia/NuvioMobile/cmp-rewrite/store.json) in the app's Sources section, then install Nuvio.
+Android releases will be published on [GitHub Releases](https://github.com/Amr603241/LaqtaMobile/releases).
 
 ## Build from source
 
 ```bash
-git clone https://github.com/NuvioMedia/NuvioMobile.git
-cd NuvioMobile
+git clone https://github.com/Amr603241/LaqtaMobile.git
+cd LaqtaMobile
 ```
 
 ### Android
@@ -52,4 +40,4 @@ The shared app is built with Kotlin Multiplatform and Compose Multiplatform.
 
 ## License
 
-[GNU General Public License v3.0](./LICENSE)
+This project is distributed under the [GNU General Public License v3.0](./LICENSE). Preserve the license and third-party notices when redistributing.

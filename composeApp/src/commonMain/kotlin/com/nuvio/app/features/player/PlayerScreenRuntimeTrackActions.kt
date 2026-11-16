@@ -86,6 +86,22 @@ internal fun PlayerScreenRuntime.persistAddonSubtitlePreference(subtitle: AddonS
     }
 }
 
+internal fun PlayerScreenRuntime.selectAddonSubtitle(subtitle: AddonSubtitle) {
+    isUserExplicitSubtitleSelection = true
+    selectedAddonSubtitleId = subtitle.selectionKey
+    selectedSubtitleIndex = -1
+    useCustomSubtitles = true
+    preferredSubtitleSelectionApplied = true
+    persistAddonSubtitlePreference(subtitle)
+    if (subtitle.url.isLocalSubtitleUri()) {
+        subtitleAutoSyncState = SubtitleAutoSyncUiState()
+        playerController?.setSubtitleUri(subtitle.url)
+    } else {
+        attachSelectedAddonSubtitleWithAutoSync(subtitle.url)
+    }
+    if (hasBurnedInServerSubtitle) clearServerSubtitleTrack()
+}
+
 internal fun PlayerScreenRuntime.restorePersistedTrackPreferenceIfNeeded(): Boolean {
     if (trackPreferenceRestoreApplied) return true
     // A pending carry-over describes the selection playing right now; it wins over the stored

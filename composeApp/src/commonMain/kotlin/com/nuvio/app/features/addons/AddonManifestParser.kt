@@ -36,6 +36,7 @@ internal object AddonManifestParser {
             types = defaultTypes,
             idPrefixes = defaultPrefixes,
             catalogs = root.catalogs(),
+            addonCatalogs = root.addonCatalogs(),
             behaviorHints = root.behaviorHints(),
             transportUrl = manifestUrl,
         )
@@ -64,8 +65,12 @@ internal object AddonManifestParser {
             }
         }.filter { it.name.isNotBlank() }
 
-    private fun JsonObject.catalogs(): List<AddonCatalog> =
-        array("catalogs").map { catalogElement ->
+    private fun JsonObject.catalogs(): List<AddonCatalog> = catalogs("catalogs")
+
+    private fun JsonObject.addonCatalogs(): List<AddonCatalog> = catalogs("addonCatalogs")
+
+    private fun JsonObject.catalogs(name: String): List<AddonCatalog> =
+        array(name).map { catalogElement ->
             val catalog = catalogElement.jsonObject
             AddonCatalog(
                 type = catalog.requiredString("type"),

@@ -6,9 +6,17 @@ import kotlin.test.assertNull
 
 class AppUpdaterRepositoryTest {
     @Test
-    fun channelsUseTheSameReleaseEndpointsAsTv() {
+    fun channelsUseLaqtaRepositoryReleaseEndpoints() {
         assertEquals("releases/latest", AppUpdaterRepository.releasePath(UpdateChannel.STABLE))
         assertEquals("releases?per_page=100", AppUpdaterRepository.releasePath(UpdateChannel.BETA))
+        assertEquals(
+            "https://api.github.com/repos/Amr603241/LaqtaMobile/releases/latest",
+            AppUpdaterRepository.releaseUrl(UpdateChannel.STABLE),
+        )
+        assertEquals(
+            "https://api.github.com/repos/Amr603241/LaqtaMobile/releases?per_page=100",
+            AppUpdaterRepository.releaseUrl(UpdateChannel.BETA),
+        )
     }
 
     @Test

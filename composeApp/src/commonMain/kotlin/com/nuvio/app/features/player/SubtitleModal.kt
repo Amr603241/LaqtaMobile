@@ -32,7 +32,10 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import com.nuvio.app.features.autosync.AutoSyncedChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.action_cancel
 import nuvio.composeapp.generated.resources.addon_title
 import nuvio.composeapp.generated.resources.compose_player_built_in
 import nuvio.composeapp.generated.resources.compose_player_fetch_subtitles
@@ -57,8 +61,18 @@ import nuvio.composeapp.generated.resources.compose_player_languages
 import nuvio.composeapp.generated.resources.compose_player_none
 import nuvio.composeapp.generated.resources.compose_player_style
 import nuvio.composeapp.generated.resources.compose_player_subtitles
+import nuvio.composeapp.generated.resources.subtitle_add_from_url
+import nuvio.composeapp.generated.resources.subtitle_add_action
+import nuvio.composeapp.generated.resources.subtitle_download_failed
+import nuvio.composeapp.generated.resources.subtitle_import_from_device
+import nuvio.composeapp.generated.resources.subtitle_invalid_or_unsupported
+import nuvio.composeapp.generated.resources.subtitle_language_placeholder
+import nuvio.composeapp.generated.resources.subtitle_search_addons
+import nuvio.composeapp.generated.resources.subtitle_url_dialog_title
+import nuvio.composeapp.generated.resources.subtitle_url_placeholder
 import nuvio.composeapp.generated.resources.settings_playback_option_forced
 import nuvio.composeapp.generated.resources.subtitle_language_unknown
+import com.nuvio.app.core.ui.NuvioToastController
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -78,6 +92,8 @@ fun SubtitleModal(
     onBuiltInTrackSelected: (Int) -> Unit,
     onAddonSubtitleSelected: (AddonSubtitle) -> Unit,
     onFetchAddonSubtitles: () -> Unit,
+    onAddSubtitleFromUrl: (String, String) -> Unit,
+    onImportedSubtitle: (AddonSubtitle) -> Unit,
     onStyleChanged: (SubtitleStyleState) -> Unit,
     onSubtitleDelayChanged: (Int) -> Unit,
     onSubtitleDelayReset: () -> Unit,
@@ -126,6 +142,40 @@ fun SubtitleModal(
         )
     }
     var pendingOptionId by remember(visible) { mutableStateOf<String?>(playbackOptionId) }
+    var showUrlDialog by remember(visible) { mutableStateOf(false) }
+    var subtitleUrl by remember(visible) { mutableStateOf("") }
+    var subtitleLanguage by remember(visible, preferredSubtitleLanguage) {
+        mutableStateOf(preferredSubtitleLanguage)
+    }
+    val invalidSubtitleMessage = stringResource(Res.string.subtitle_invalid_or_unsupported)
+    val downloadSubtitleMessage = stringResource(Res.string.subtitle_download_failed)
+    val importSubtitleFile = rememberSubtitleFileImporter { result ->
+        result.fold(
+            onSuccess = { file ->
+                val subtitle = importedSubtitleFromText(
+                    id = file.name,
+                    name = file.name,
+                    url = file.name,
+                    language = preferredSubtitleLanguage,
+                    text = file.bytes.decodeToString(),
+                )
+                if (subtitle == null) {
+                    NuvioToastController.show(invalidSubtitleMessage)
+                } else {
+                    runCatching { SubtitleImportStorage.save(file.name, file.bytes) }
+                        .onSuccess { localUri ->
+                            onImportedSubtitle(subtitle.copy(id = localUri, url = localUri))
+                        }
+                        .onFailure { error ->
+                            NuvioToastController.show(error.message ?: downloadSubtitleMessage)
+                        }
+                }
+            },
+            onFailure = { error ->
+                NuvioToastController.show(error.message ?: downloadSubtitleMessage)
+            },
+        )
+    }
     val options = remember(activeLanguageKey, subtitleStructureKey, addonStructureKey) {
         buildSubtitleSelectionOptions(activeLanguageKey, subtitleTracks, addonSubtitles)
     }
@@ -185,6 +235,27 @@ fun SubtitleModal(
                 )
 
                 Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(onClick = onFetchAddonSubtitles) {
+                        Icon(Icons.Rounded.CloudDownload, contentDescription = null)
+                        Text(
+                            text = stringResource(Res.string.subtitle_search_addons),
+                            modifier = Modifier.padding(start = 6.dp),
+                        )
+                    }
+                    TextButton(onClick = { showUrlDialog = true }) {
+                        Text(stringResource(Res.string.subtitle_add_from_url))
+                    }
+                    TextButton(onClick = importSubtitleFile) {
+                        Text(stringResource(Res.string.subtitle_import_from_device))
+                    }
+                }
+
+                Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.Top,
@@ -219,6 +290,45 @@ fun SubtitleModal(
                                     },
                                 )
                             }
+                        }
+
+                        if (showUrlDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showUrlDialog = false },
+                                title = { Text(stringResource(Res.string.subtitle_url_dialog_title)) },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        OutlinedTextField(
+                                            value = subtitleUrl,
+                                            onValueChange = { subtitleUrl = it },
+                                            label = { Text(stringResource(Res.string.subtitle_url_placeholder)) },
+                                            singleLine = true,
+                                        )
+                                        OutlinedTextField(
+                                            value = subtitleLanguage,
+                                            onValueChange = { subtitleLanguage = it },
+                                            label = { Text(stringResource(Res.string.subtitle_language_placeholder)) },
+                                            singleLine = true,
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        enabled = isHttpSubtitleUrl(subtitleUrl),
+                                        onClick = {
+                                            onAddSubtitleFromUrl(subtitleUrl.trim(), subtitleLanguage.trim())
+                                            showUrlDialog = false
+                                        },
+                                    ) {
+                                        Text(stringResource(Res.string.subtitle_add_action))
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showUrlDialog = false }) {
+                                        Text(stringResource(Res.string.action_cancel))
+                                    }
+                                },
+                            )
                         }
                     }
 

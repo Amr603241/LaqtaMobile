@@ -707,16 +707,9 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
                 if (hasBurnedInServerSubtitle) clearServerSubtitleTrack()
             }
         },
-        onAddonSubtitleSelected = { addon ->
-            isUserExplicitSubtitleSelection = true
-            selectedAddonSubtitleId = addon.selectionKey
-            selectedSubtitleIndex = -1
-            useCustomSubtitles = true
-            preferredSubtitleSelectionApplied = true
-            persistAddonSubtitlePreference(addon)
-            attachSelectedAddonSubtitleWithAutoSync(addon.url) // AutoSync hook
-            if (hasBurnedInServerSubtitle) clearServerSubtitleTrack()
-        },
+        onAddonSubtitleSelected = { addon -> selectAddonSubtitle(addon) },
+        onAddSubtitleFromUrl = { url, language -> addSubtitleFromUrl(url, language) },
+        onImportedSubtitle = { subtitle -> addImportedSubtitle(subtitle) },
         onFetchAddonSubtitles = { fetchAddonSubtitlesForActiveItem() },
         onSubtitleStyleChanged = PlayerSettingsRepository::setSubtitleStyle,
         onSubtitleDelayChanged = { delayMs -> setSubtitleDelay(delayMs) },

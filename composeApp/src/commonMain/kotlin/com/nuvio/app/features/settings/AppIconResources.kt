@@ -17,27 +17,27 @@ internal val AppIconOption.labelResource: StringResource
 
 internal val AppIconOption.previewResource: DrawableResource
     get() = when (this) {
-        AppIconOption.ORIGINAL -> Res.drawable.app_icon_original
-        AppIconOption.ARCTIC_BLUE -> Res.drawable.app_icon_arctic_blue
-        AppIconOption.EMERALD -> Res.drawable.app_icon_emerald
-        AppIconOption.ROSE_GOLD -> Res.drawable.app_icon_rose_gold
-        AppIconOption.COPPER -> Res.drawable.app_icon_copper
-        AppIconOption.GRAPHITE -> Res.drawable.app_icon_graphite
+        AppIconOption.ORIGINAL -> Res.drawable.app_icon_laqta
+        AppIconOption.ARCTIC_BLUE -> Res.drawable.app_icon_laqta_arctic_blue
+        AppIconOption.EMERALD -> Res.drawable.app_icon_laqta_emerald
+        AppIconOption.ROSE_GOLD -> Res.drawable.app_icon_laqta_rose_gold
+        AppIconOption.COPPER -> Res.drawable.app_icon_laqta_copper
+        AppIconOption.GRAPHITE -> Res.drawable.app_icon_laqta_graphite
     }
 
 internal val AppIconOption.wordmarkResource: DrawableResource
     get() = when (this) {
-        AppIconOption.ORIGINAL -> Res.drawable.app_logo_wordmark_original
-        AppIconOption.ARCTIC_BLUE -> Res.drawable.app_logo_wordmark_arctic_blue
-        AppIconOption.EMERALD -> Res.drawable.app_logo_wordmark_emerald
-        AppIconOption.ROSE_GOLD -> Res.drawable.app_logo_wordmark_rose_gold
-        AppIconOption.COPPER -> Res.drawable.app_logo_wordmark_copper
-        AppIconOption.GRAPHITE -> Res.drawable.app_logo_wordmark_graphite
+        AppIconOption.ORIGINAL -> Res.drawable.app_logo_wordmark_laqta
+        AppIconOption.ARCTIC_BLUE -> Res.drawable.app_logo_wordmark_laqta_arctic_blue
+        AppIconOption.EMERALD -> Res.drawable.app_logo_wordmark_laqta_emerald
+        AppIconOption.ROSE_GOLD -> Res.drawable.app_logo_wordmark_laqta_rose_gold
+        AppIconOption.COPPER -> Res.drawable.app_logo_wordmark_laqta_copper
+        AppIconOption.GRAPHITE -> Res.drawable.app_logo_wordmark_laqta_graphite
     }
 
 internal fun AppTheme.wordmarkResource(fallback: AppIconOption): DrawableResource =
     when (this) {
-        AppTheme.GOLD -> Res.drawable.app_logo_wordmark_gold
+        AppTheme.GOLD -> Res.drawable.app_logo_wordmark_laqta_gold
         AppTheme.JADE -> AppIconOption.EMERALD.wordmarkResource
         AppTheme.ROSE_GOLD -> AppIconOption.ROSE_GOLD.wordmarkResource
         AppTheme.ARCTIC_BLUE -> AppIconOption.ARCTIC_BLUE.wordmarkResource
