@@ -1,6 +1,6 @@
 # لقطة | Laqta
 
-Laqta is a customized media app maintained in this repository. It is derived from the open-source [NuvioMobile project](https://github.com/NuvioMedia/NuvioMobile); original license notices and contributor history are retained.
+Laqta is a customized derivative of existing open-source media software. Original license notices and source history are retained.
 
 ## Downloads
 

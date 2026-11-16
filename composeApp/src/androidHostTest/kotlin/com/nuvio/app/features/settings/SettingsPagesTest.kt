@@ -246,4 +246,26 @@ class SettingsPagesTest {
             assertTrue(entries.any { it.target == SettingsSearchTarget.Page(SettingsPage.PlaybackVideo) })
         }
     }
+
+    @Test
+    fun supporterSettingsAreHiddenFromSearchWhenFeatureIsDisabled() {
+        var entries = emptyList<SettingsSearchEntry>()
+        compose.setContent {
+            NuvioTheme {
+                entries = settingsSearchEntries(
+                    isTablet = false,
+                    pluginsEnabled = true,
+                    supportersContributorsPageEnabled = false,
+                    accountDeletionEnabled = true,
+                    personalMediaAddonCopyEnabled = true,
+                    liquidGlassNativeTabBarSupported = true,
+                    switchProfileAvailable = true,
+                    checkForUpdatesAvailable = true,
+                )
+            }
+        }
+        compose.runOnIdle {
+            assertFalse(entries.any { it.key == "supporters" })
+        }
+    }
 }
