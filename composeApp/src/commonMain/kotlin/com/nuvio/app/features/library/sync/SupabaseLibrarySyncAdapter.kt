@@ -1,9 +1,12 @@
 package com.nuvio.app.features.library.sync
 
+import co.touchlab.kermit.Logger
+import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.library.LibraryItem
+import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.serialization.SerialName
@@ -14,6 +17,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
 object SupabaseLibrarySyncAdapter : LibrarySyncAdapter {
+    private val log = Logger.withTag("LibrarySync")
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -22,7 +26,34 @@ object SupabaseLibrarySyncAdapter : LibrarySyncAdapter {
     override suspend fun pullSnapshot(
         profileId: Int,
         pageSize: Int,
-    ): List<LibraryItem> =
+    ): List<LibraryItem> {
+        if (!ServerConfigurationRepository.active.value.isCustom) {
+            try {
+                return collectKeysetPages(
+                    pageSize = pageSize,
+                    keyOf = { item: LibrarySyncItem -> LibrarySyncKey(item.contentId, item.contentType) },
+                ) { limit, after ->
+                    val params = buildJsonObject {
+                        put("p_profile_id", profileId)
+                        put("p_limit", limit)
+                        after?.let {
+                            put("p_after_id", it.contentId)
+                            put("p_after_type", it.contentType)
+                        }
+                    }
+                    SupabaseProvider.client.postgrest
+                        .rpc("sync_pull_library_keyset", params)
+                        .decodeList<LibrarySyncItem>()
+                }.map(LibrarySyncItem::toLibraryItem)
+            } catch (error: PostgrestRestException) {
+                if (error.code != "PGRST202") throw error
+                log.w { "Library keyset migration is missing; using legacy snapshot paging" }
+            }
+        }
+        return pullOffsetSnapshot(profileId, pageSize)
+    }
+
+    private suspend fun pullOffsetSnapshot(profileId: Int, pageSize: Int): List<LibraryItem> =
         collectOffsetPages(pageSize) { limit, offset ->
             val params = buildJsonObject {
                 put("p_profile_id", profileId)

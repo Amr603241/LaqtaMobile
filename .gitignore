@@ -24,6 +24,9 @@ analysis/
 Docs
 SUPPORTER_COSMETICS.md
 supabase/migrations/
+!supabase/migrations/
+supabase/migrations/*
+!supabase/migrations/*.sql
 keystore/
 scripts/build-distribution.sh
 asset

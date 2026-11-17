@@ -20,6 +20,24 @@ internal suspend fun <T> collectOffsetPages(
     }
 }
 
+internal suspend fun <T, K> collectKeysetPages(
+    pageSize: Int,
+    keyOf: (T) -> K,
+    fetchPage: suspend (limit: Int, after: K?) -> List<T>,
+): List<T> {
+    require(pageSize > 0)
+    val items = mutableListOf<T>()
+    var cursor: K? = null
+    while (true) {
+        val page = fetchPage(pageSize, cursor)
+        items += page
+        if (page.size < pageSize) return items
+        val nextCursor = keyOf(page.last())
+        check(nextCursor != cursor) { "Library snapshot cursor did not advance" }
+        cursor = nextCursor
+    }
+}
+
 internal suspend fun <T> consumeCursorPages(
     initialCursor: Long,
     pageSize: Int,

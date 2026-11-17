@@ -42,7 +42,7 @@ internal object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(channel: UpdateChannel): Result<AppUpdate> = runCatching {
         val response = httpRequestRaw(
             method = "GET",
-            url = releaseUrl(channel),
+            url = releaseUrl(),
             headers = mapOf(
                 "Accept" to "application/vnd.github+json",
                 "User-Agent" to "LaqtaMobile",
@@ -58,23 +58,14 @@ internal object AppUpdaterRepository {
             ?: throw NoChannelReleaseException()
     }
 
-    internal fun releasePath(channel: UpdateChannel): String = when (channel) {
-        UpdateChannel.STABLE -> "releases/latest"
-        UpdateChannel.BETA -> "releases?per_page=100"
-    }
-
-    internal fun releaseUrl(channel: UpdateChannel): String =
-        "$GitHubRepositoryApiUrl/${releasePath(channel)}"
+    internal fun releaseUrl(): String = "$GitHubRepositoryApiUrl/releases?per_page=100"
 
     internal fun selectUpdate(
         responseBody: String,
         channel: UpdateChannel,
         supportedAbis: List<String>,
     ): AppUpdate? {
-        val releases = when (channel) {
-            UpdateChannel.STABLE -> listOf(json.decodeFromString<GitHubReleaseDto>(responseBody))
-            UpdateChannel.BETA -> json.decodeFromString<List<GitHubReleaseDto>>(responseBody)
-        }
+        val releases = json.decodeFromString<List<GitHubReleaseDto>>(responseBody)
         return ReleaseSelector.eligibleReleases(releases, channel).firstNotNullOfOrNull { release ->
             val asset = chooseBestApkAsset(release.assets, supportedAbis) ?: return@firstNotNullOfOrNull null
             val tag = release.tagName?.takeIf { VersionUtils.parse(it) != null }
@@ -99,12 +90,20 @@ internal object AppUpdaterRepository {
             asset.name.endsWith(".apk", ignoreCase = true) ||
                 asset.contentType == "application/vnd.android.package-archive"
         }
-        for (abi in supportedAbis) {
-            apkAssets.firstOrNull { it.name.contains(abi, ignoreCase = true) }?.let { return it }
+        fun matchesAbi(name: String, abi: String): Boolean {
+            val suffix = if (abi.equals("x86", ignoreCase = true)) "(?!_64)" else ""
+            return Regex("(^|[^a-z0-9])${Regex.escape(abi)}$suffix(?=$|[^a-z0-9])", RegexOption.IGNORE_CASE)
+                .containsMatchIn(name)
         }
-        return apkAssets.firstOrNull { asset ->
-            val name = asset.name.lowercase()
-            name.contains("universal") || name.contains("all")
-        } ?: apkAssets.firstOrNull()
+
+        for (abi in supportedAbis) {
+            apkAssets.firstOrNull { matchesAbi(it.name, abi) }?.let { return it }
+        }
+        val genericAssets = apkAssets.filter { asset ->
+            listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86").none { matchesAbi(asset.name, it) }
+        }
+        val universalName = Regex("(^|[^a-z0-9])(universal|all)(?=$|[^a-z0-9])", RegexOption.IGNORE_CASE)
+        return genericAssets.firstOrNull { universalName.containsMatchIn(it.name) }
+            ?: genericAssets.firstOrNull()
     }
 }

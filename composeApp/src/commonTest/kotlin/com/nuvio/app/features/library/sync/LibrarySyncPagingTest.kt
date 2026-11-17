@@ -3,8 +3,28 @@ package com.nuvio.app.features.library.sync
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class LibrarySyncPagingTest {
+
+    @Test
+    fun `keyset snapshot keeps later items when an earlier item is deleted`() = runBlocking {
+        val source = mutableListOf("a", "b", "c", "d", "e")
+        val result = collectKeysetPages<String, String>(pageSize = 2, keyOf = { it }) { limit, after ->
+            if (after == "b") source.remove("a")
+            source.filter { after == null || it > after }.take(limit)
+        }
+
+        assertEquals(listOf("a", "b", "c", "d", "e"), result)
+    }
+
+    @Test
+    fun `keyset snapshot rejects a repeated cursor`() = runBlocking {
+        assertFailsWith<IllegalStateException> {
+            collectKeysetPages<String, String>(pageSize = 1, keyOf = { it }) { _, _ -> listOf("a") }
+        }
+        Unit
+    }
 
     @Test
     fun `snapshot paging collects more than two full pages`() = runBlocking {

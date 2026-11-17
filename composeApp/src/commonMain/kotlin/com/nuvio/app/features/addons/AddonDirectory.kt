@@ -22,6 +22,9 @@ internal enum class AddonDirectoryFilter(val resourceName: String?) {
     SUBTITLES("subtitles"),
 }
 
+internal val AddonManifest.canConfigure: Boolean
+    get() = behaviorHints.configurable || behaviorHints.configurationRequired
+
 internal fun filterAddonDirectory(
     addons: List<AddonManifest>,
     query: String,
@@ -91,10 +94,10 @@ internal object AddonDirectoryRepository {
     private const val MANIFEST_URL = "https://stremio-addons.net/api/manifest.json"
     private val log = Logger.withTag("AddonDirectoryRepository")
 
-    suspend fun load(): AddonDirectoryResult = withContext(Dispatchers.Default) {
+    suspend fun load(forceRefresh: Boolean = false): AddonDirectoryResult = withContext(Dispatchers.Default) {
         val directoryManifest = AddonManifestParser.parse(
             manifestUrl = MANIFEST_URL,
-            payload = fetchAddonResponseText(MANIFEST_URL),
+            payload = fetchAddonResponseText(MANIFEST_URL, forceRefresh = forceRefresh),
         )
         if (directoryManifest.resources.none { it.name == "addon_catalog" }) {
             throw IllegalArgumentException("The directory manifest does not provide addon_catalog.")
@@ -104,7 +107,7 @@ internal object AddonDirectoryRepository {
         } ?: throw IllegalArgumentException("The directory manifest does not provide the expected catalog.")
 
         val catalogUrl = addonCatalogUrl(directoryManifest.transportUrl, catalog)
-        val result = AddonDirectoryParser.parse(fetchAddonResponseText(catalogUrl))
+        val result = AddonDirectoryParser.parse(fetchAddonResponseText(catalogUrl, forceRefresh = forceRefresh))
         if (result.invalidEntryCount > 0) {
             log.w { "Skipped ${result.invalidEntryCount} invalid addon directory entries" }
         }

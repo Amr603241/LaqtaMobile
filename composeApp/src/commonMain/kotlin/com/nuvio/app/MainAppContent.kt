@@ -1487,6 +1487,7 @@ internal fun MainAppContent(
                                         appUpdaterController.checkForUpdates(
                                             force = true,
                                             showNoUpdateFeedback = true,
+                                            downloadWhenDebug = true,
                                         )
                                     }
                                 } else {
@@ -1635,7 +1636,13 @@ internal fun MainAppContent(
                         useNativeNavigation = useNativeNavigation,
                         collectionsTitle = collectionsTitle,
                         onCheckForUpdates = if (AppFeaturePolicy.inAppUpdaterEnabled) {
-                            { appUpdaterController.checkForUpdates(force = true, showNoUpdateFeedback = true) }
+                            {
+                                appUpdaterController.checkForUpdates(
+                                    force = true,
+                                    showNoUpdateFeedback = true,
+                                    downloadWhenDebug = true,
+                                )
+                            }
                         } else null,
                         onTestUpdateBanner = if (
                             AppFeaturePolicy.inAppUpdaterEnabled && AppUpdaterPlatform.isDebugBuild

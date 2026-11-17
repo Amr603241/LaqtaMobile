@@ -119,6 +119,31 @@ class AddonDirectoryTest {
         assertTrue(manifest.catalogs.isEmpty())
     }
 
+    @Test
+    fun `directory recognizes required and optional addon configuration`() {
+        val result = AddonDirectoryParser.parse(
+            """
+            {"addons": [
+              {"transportName": "http", "transportUrl": "https://required.example/manifest.json",
+               "manifest": {"id": "required", "name": "Required", "version": "1",
+                            "behaviorHints": {"configurationRequired": true}}},
+              {"transportName": "http", "transportUrl": "https://optional.example/manifest.json",
+               "manifest": {"id": "optional", "name": "Optional", "version": "1",
+                            "behaviorHints": {"configurable": true}}},
+              {"transportName": "http", "transportUrl": "https://plain.example/manifest.json",
+               "manifest": {"id": "plain", "name": "Plain", "version": "1"}}
+            ]}
+            """.trimIndent(),
+        )
+
+        assertEquals(0, result.invalidEntryCount)
+        assertTrue(result.addons[0].canConfigure)
+        assertTrue(result.addons[0].behaviorHints.configurationRequired)
+        assertTrue(result.addons[1].canConfigure)
+        assertFalse(result.addons[1].behaviorHints.configurationRequired)
+        assertFalse(result.addons[2].canConfigure)
+    }
+
     private fun directoryManifest(
         id: String,
         name: String,

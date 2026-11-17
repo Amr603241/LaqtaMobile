@@ -1,5 +1,6 @@
 package com.nuvio.app.core.deeplink
 
+import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.tracking.ensureTrackingProvidersRegistered
 import com.nuvio.app.features.party.PARTY_CODE_LENGTH
 import com.nuvio.app.features.party.normalizePartyCode
@@ -48,6 +49,7 @@ internal object AppDeepLinkRepository {
 fun handleAppUrl(url: String) {
     val normalizedUrl = url.trim()
     if (normalizedUrl.isBlank()) return
+    if (AuthRepository.handleAuthCallback(normalizedUrl)) return
     if (infusePlaybackCallbacks.handleUrl(normalizedUrl)) return
 
     ensureTrackingProvidersRegistered()
@@ -59,13 +61,13 @@ fun buildMetaDeepLinkUrl(
     type: String,
     id: String,
 ): String = buildString {
-    append("nuvio://meta?type=")
+    append("laqta://meta?type=")
     append(type.trim().encodeURLParameter())
     append("&id=")
     append(id.trim().encodeURLParameter())
 }
 
-fun buildDownloadsDeepLinkUrl(): String = "nuvio://downloads"
+fun buildDownloadsDeepLinkUrl(): String = "laqta://downloads"
 
 internal fun parseAppDeepLink(url: String): AppDeepLink? {
     val parsedUrl = runCatching { Url(url) }.getOrNull() ?: return null
@@ -79,10 +81,7 @@ internal fun parseAppDeepLink(url: String): AppDeepLink? {
     }
     val host = parsedUrl.host.lowercase()
     val pathSegments = parsedUrl.pathSegments.map(String::trim).filter(String::isNotBlank)
-    if (scheme == "https") {
-        return if (host == "nuvio.tv" && pathSegments.firstOrNull() == "party") partyDeepLink(pathSegments.getOrNull(1)) else null
-    }
-    if (scheme != "nuvio") return null
+    if (scheme != "laqta" && scheme != "nuvio") return null
 
     return when (host) {
         "meta" -> {

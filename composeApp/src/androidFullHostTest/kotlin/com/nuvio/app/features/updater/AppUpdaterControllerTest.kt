@@ -4,13 +4,18 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.nuvio.app.core.build.AppVersionConfig
+import com.nuvio.app.core.ui.NuvioToastController
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.updates_no_installable_release
+import org.jetbrains.compose.resources.getString
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -89,6 +94,44 @@ class AppUpdaterControllerTest {
     }
 
     @Test
+    fun manualCheckDownloadsNewReleaseInDebugBuild() {
+        AppUpdaterPlatform.setIgnoredTag("999.0.0")
+        var downloadCount = 0
+        val controller = controller(
+            fetch = { Result.success(update("999.0.0")) },
+            downloadApk = { _, _, _ ->
+                downloadCount += 1
+                Result.failure(IllegalStateException("Download failed"))
+            },
+        )
+
+        controller.ensureAutoCheckStarted()
+        assertEquals(0, downloadCount)
+        controller.checkForUpdates(force = true, showNoUpdateFeedback = true, downloadWhenDebug = true)
+
+        assertEquals(1, downloadCount)
+        assertEquals("Download failed", controller.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun repeatedManualCheckDoesNotDownloadSameApkAgain() {
+        var downloadCount = 0
+        val controller = controller(
+            fetch = { Result.success(update("999.0.0")) },
+            downloadApk = { _, _, _ ->
+                downloadCount += 1
+                Result.success("test-update.apk")
+            },
+        )
+
+        controller.checkForUpdates(force = true, showNoUpdateFeedback = true, downloadWhenDebug = true)
+        controller.checkForUpdates(force = true, showNoUpdateFeedback = true, downloadWhenDebug = true)
+
+        assertEquals(1, downloadCount)
+        assertEquals("test-update.apk", controller.uiState.value.downloadedApkPath)
+    }
+
+    @Test
     fun ignoredReleaseIsNotDownloadedAutomatically() {
         val context = RuntimeEnvironment.getApplication()
         context.applicationInfo.flags = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE.inv()
@@ -152,6 +195,18 @@ class AppUpdaterControllerTest {
         assertFalse(controller.uiState.value.showDialog)
         assertFalse(controller.uiState.value.isChecking)
         assertNull(controller.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun manualCheckReportsWhenNoInstallableReleaseExists() {
+        val controller = controller { Result.failure(NoChannelReleaseException()) }
+
+        controller.checkForUpdates(force = true, showNoUpdateFeedback = true)
+
+        assertEquals(
+            runBlocking { getString(Res.string.updates_no_installable_release) },
+            NuvioToastController.currentToast.value?.message,
+        )
     }
 
     @Test

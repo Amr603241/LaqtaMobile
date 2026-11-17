@@ -9,6 +9,7 @@ data class ServerCapabilities(
     val emailPasswordAuth: Boolean,
     val tvLogin: Boolean,
     val watchParty: Boolean = false,
+    val googleOAuth: Boolean = false,
 )
 
 data class ServerConfiguration(
@@ -19,6 +20,12 @@ data class ServerConfiguration(
     val discoveryUrl: String? = null,
     val fallbackBackendUrl: String? = null,
 ) {
+    val hasEmailPasswordAuth: Boolean
+        get() = capabilities.emailPasswordAuth && backendUrl.isNotBlank() && publishableKey.isNotBlank()
+
+    val hasGoogleOAuth: Boolean
+        get() = capabilities.googleOAuth && backendUrl.isNotBlank() && publishableKey.isNotBlank()
+
     val isSecure: Boolean
         get() = backendUrl.startsWith("https://", ignoreCase = true)
 
@@ -49,17 +56,23 @@ object ServerConfigurationRepository {
     }
 }
 
-internal fun officialConfiguration() = ServerConfiguration(
-    backendUrl = SupabaseConfig.URL.trim().trimEnd('/'),
-    publishableKey = SupabaseConfig.ANON_KEY.trim(),
-    capabilities = ServerCapabilities(
-        emailPasswordAuth = true,
-        tvLogin = true,
-        watchParty = true,
-    ),
-    isCustom = false,
-    fallbackBackendUrl = SupabaseConfig.FALLBACK_URL.trim().trimEnd('/').takeIf { it.isNotBlank() },
-)
+internal fun officialConfiguration(): ServerConfiguration {
+    val backendUrl = SupabaseConfig.URL.trim().trimEnd('/')
+    val publishableKey = SupabaseConfig.ANON_KEY.trim()
+    val authConfigured = backendUrl.isNotBlank() && publishableKey.isNotBlank()
+    return ServerConfiguration(
+        backendUrl = backendUrl,
+        publishableKey = publishableKey,
+        capabilities = ServerCapabilities(
+            emailPasswordAuth = authConfigured,
+            tvLogin = false,
+            watchParty = authConfigured,
+            googleOAuth = authConfigured && SupabaseConfig.GOOGLE_OAUTH_ENABLED,
+        ),
+        isCustom = false,
+        fallbackBackendUrl = SupabaseConfig.FALLBACK_URL.trim().trimEnd('/').takeIf { it.isNotBlank() },
+    )
+}
 
 internal fun isPublicServerHost(url: String): Boolean {
     val host = runCatching { io.ktor.http.Url(url).host.lowercase() }.getOrNull() ?: return true

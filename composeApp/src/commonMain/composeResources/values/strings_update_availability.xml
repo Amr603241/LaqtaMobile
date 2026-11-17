@@ -1,0 +1,3 @@
+<resources>
+    <string name="updates_no_installable_release">No installable release is available for this update channel.</string>
+</resources>

@@ -1,0 +1,8 @@
+<resources>
+    <string name="nuvio_link_title">حساب Nuvio</string>
+    <string name="nuvio_link_description">سجّل الدخول إلى Nuvio بشكل منفصل عن Laqta. يستمر الاتصال حتى إغلاق التطبيق. مزامنة البيانات وحفلات المشاهدة غير متاحتين عبر هذا الاتصال بعد.</string>
+    <string name="nuvio_link_connect">تسجيل الدخول إلى Nuvio</string>
+    <string name="nuvio_link_disconnect">فصل حساب Nuvio</string>
+    <string name="nuvio_link_connected">تم تسجيل الدخول باسم %1$s</string>
+    <string name="nuvio_link_error">تعذر تنفيذ طلب Nuvio. تحقق من اتصالك وبيانات الحساب وحاول مجددًا.</string>
+</resources>

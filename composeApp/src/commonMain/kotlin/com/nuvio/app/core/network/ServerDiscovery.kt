@@ -44,11 +44,11 @@ private data class DiscoveryCapabilities(
     @SerialName("email_password_auth") val emailPasswordAuth: Boolean = false,
     @SerialName("tv_login") val tvLogin: Boolean = false,
     @SerialName("watch_party") val watchParty: Boolean = false,
+    @SerialName("google_oauth") val googleOAuth: Boolean = false,
 )
 
 internal object ServerDiscoveryPolicy {
     private const val discoveryPath = "/.well-known/nuvio"
-    private const val canonicalOfficialBackend = "https://api.nuvio.tv"
     private val json = Json { ignoreUnknownKeys = true }
 
     fun discoveryUrl(input: String): String {
@@ -93,6 +93,7 @@ internal object ServerDiscoveryPolicy {
                 emailPasswordAuth = payload.capabilities.emailPasswordAuth,
                 tvLogin = payload.capabilities.tvLogin,
                 watchParty = payload.capabilities.watchParty,
+                googleOAuth = payload.capabilities.googleOAuth,
             ),
             isCustom = true,
             discoveryUrl = discoveryUrl,
@@ -100,8 +101,7 @@ internal object ServerDiscoveryPolicy {
     }
 
     fun isOfficial(candidateUrl: String): Boolean =
-        matchesBackend(candidateUrl, SupabaseConfig.URL) ||
-            matchesBackend(candidateUrl, canonicalOfficialBackend)
+        matchesBackend(candidateUrl, SupabaseConfig.URL)
 
     private fun matchesBackend(candidateUrl: String, backendUrl: String): Boolean {
         val candidate = runCatching { Url(candidateUrl) }.getOrNull() ?: return false

@@ -110,15 +110,16 @@ internal fun AddonsSettingsPageContent(
     var includeAdultAddons by rememberSaveable { mutableStateOf(false) }
     var visibleAddonCount by rememberSaveable { mutableIntStateOf(30) }
     val enterAddonUrlMessage = stringResource(Res.string.addons_error_enter_url)
+    val configureErrorMessage = stringResource(Res.string.addons_browse_configure_error)
     val usePersonalMediaCopy = AppFeaturePolicy.personalMediaAddonCopyEnabled
 
     val overview = remember(uiState.addons) { uiState.addons.toOverview() }
 
-    suspend fun loadDirectory() {
+    suspend fun loadDirectory(forceRefresh: Boolean = false) {
         if (directoryState.isLoading) return
         directoryState = directoryState.copy(isLoading = true, errorMessage = null)
         try {
-            val result = AddonDirectoryRepository.load()
+            val result = AddonDirectoryRepository.load(forceRefresh = forceRefresh)
             directoryState = AddonDirectoryUiState(
                 addons = result.addons,
                 invalidEntryCount = result.invalidEntryCount,
@@ -164,6 +165,14 @@ internal fun AddonsSettingsPageContent(
                     installModalState = AddonInstallModalState.Error(result.message)
                 }
             }
+        }
+    }
+
+    fun configureAddon(manifestUrl: String) {
+        try {
+            uriHandler.openUri(manifestUrl.toConfigureUrl())
+        } catch (error: Exception) {
+            installModalState = AddonInstallModalState.ConfigureError
         }
     }
 
@@ -217,7 +226,6 @@ internal fun AddonsSettingsPageContent(
                     val manifest = addon.manifest
                     val behaviorHints = manifest?.behaviorHints
                     val showConfigureAction = behaviorHints?.configurable == true || behaviorHints?.configurationRequired == true
-                    val configureUrl = addon.manifestUrl.toConfigureUrl()
                     InstalledAddonCard(
                         addon = addon,
                         onMoveUpClick = if (index > 0) {
@@ -239,12 +247,8 @@ internal fun AddonsSettingsPageContent(
                         onEnabledChange = { enabled ->
                             AddonRepository.setAddonEnabled(addon.manifestUrl, enabled)
                         },
-                        onConfigureClick = if (showConfigureAction && !configureUrl.isNullOrBlank()) {
-                            {
-                                runCatching {
-                                    uriHandler.openUri(configureUrl)
-                                }
-                            }
+                        onConfigureClick = if (showConfigureAction) {
+                            { configureAddon(addon.manifestUrl) }
                         } else {
                             null
                         },
@@ -277,13 +281,14 @@ internal fun AddonsSettingsPageContent(
                 visibleAddonCount = visibleAddonCount,
                 onLoadMore = { visibleAddonCount += ADDON_DIRECTORY_PAGE_SIZE },
                 onRefresh = {
-                    coroutineScope.launch { loadDirectory() }
+                    coroutineScope.launch { loadDirectory(forceRefresh = true) }
                 },
                 installedManifestUrls = remember(uiState.addons) {
                     uiState.addons.mapTo(mutableSetOf()) { it.manifestUrl }
                 },
                 filteredAddons = filteredAddons,
                 onInstall = ::installAddon,
+                onConfigure = ::configureAddon,
             )
         }
     }
@@ -334,6 +339,7 @@ internal fun AddonsSettingsPageContent(
             AddonInstallModalState.Checking -> stringResource(Res.string.addons_modal_checking_title)
             is AddonInstallModalState.Success -> stringResource(Res.string.addons_modal_success_title)
             is AddonInstallModalState.Error -> stringResource(Res.string.addons_modal_failure_title)
+            AddonInstallModalState.ConfigureError -> stringResource(Res.string.addons_configure)
         }
         val modalMessage = when (modalState) {
             AddonInstallModalState.Checking -> stringResource(Res.string.addons_modal_checking_message)
@@ -342,11 +348,13 @@ internal fun AddonsSettingsPageContent(
                 modalState.addonName,
             )
             is AddonInstallModalState.Error -> modalState.reason
+            AddonInstallModalState.ConfigureError -> configureErrorMessage
         }
         val modalConfirmText = when (modalState) {
             AddonInstallModalState.Checking -> stringResource(Res.string.addon_installing)
             is AddonInstallModalState.Success -> stringResource(Res.string.action_done)
             is AddonInstallModalState.Error -> stringResource(Res.string.action_close)
+            AddonInstallModalState.ConfigureError -> stringResource(Res.string.action_close)
         }
         NuvioStatusModal(
             title = modalTitle,
@@ -389,11 +397,18 @@ private fun AddonDirectoryContent(
     installedManifestUrls: Set<String>,
     filteredAddons: List<AddonManifest>,
     onInstall: (String) -> Unit,
+    onConfigure: (String) -> Unit,
 ) {
     SectionHeader(stringResource(Res.string.addons_browse_title))
     NuvioSurfaceCard {
         Text(
             text = stringResource(Res.string.addons_browse_disclaimer),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(Res.string.addons_browse_configure_help),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -505,6 +520,7 @@ private fun AddonDirectoryContent(
                     manifest = addon,
                     isInstalled = addon.transportUrl in installedManifestUrls,
                     onInstall = { onInstall(addon.transportUrl) },
+                    onConfigure = { onConfigure(addon.transportUrl) },
                 )
             }
             if (filteredAddons.size > visibleAddonCount) {
@@ -530,6 +546,7 @@ private fun AddonDirectoryCard(
     manifest: AddonManifest,
     isInstalled: Boolean,
     onInstall: () -> Unit,
+    onConfigure: () -> Unit,
 ) {
     NuvioSurfaceCard {
         Row(
@@ -580,17 +597,26 @@ private fun AddonDirectoryCard(
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        NuvioPrimaryButton(
-            text = stringResource(
-                if (isInstalled) {
-                    Res.string.addons_browse_installed
-                } else {
-                    Res.string.addons_browse_add
-                },
-            ),
-            enabled = !isInstalled,
-            onClick = onInstall,
-        )
+        if (manifest.canConfigure) {
+            NuvioPrimaryButton(
+                text = stringResource(Res.string.addons_configure),
+                onClick = onConfigure,
+            )
+        }
+        if (!manifest.behaviorHints.configurationRequired || isInstalled) {
+            if (manifest.canConfigure) Spacer(modifier = Modifier.height(8.dp))
+            NuvioPrimaryButton(
+                text = stringResource(
+                    if (isInstalled) {
+                        Res.string.addons_browse_installed
+                    } else {
+                        Res.string.addons_browse_add
+                    },
+                ),
+                enabled = !isInstalled,
+                onClick = onInstall,
+            )
+        }
     }
 }
 @Composable
@@ -727,6 +753,10 @@ private sealed interface AddonInstallModalState {
     data class Error(
         val reason: String,
     ) : AddonInstallModalState {
+        override val isBusy: Boolean = false
+    }
+
+    data object ConfigureError : AddonInstallModalState {
         override val isBusy: Boolean = false
     }
 }

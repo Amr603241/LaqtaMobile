@@ -35,6 +35,9 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
     abstract val supabaseAnonKey: Property<String>
 
     @get:Input
+    abstract val googleOAuthEnabled: Property<Boolean>
+
+    @get:Input
     abstract val supabaseFallbackUrl: Property<String>
 
     @get:Input
@@ -61,6 +64,7 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 |object SupabaseConfig {
                 |    const val URL = "${supabaseUrl.get()}"
                 |    const val ANON_KEY = "${supabaseAnonKey.get()}"
+                |    const val GOOGLE_OAUTH_ENABLED = ${googleOAuthEnabled.get()}
                 |    const val FALLBACK_URL = "${supabaseFallbackUrl.get()}"
                 |}
                 """.trimMargin()
@@ -320,9 +324,10 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
     localPropertiesFile.set(rootProject.layout.projectDirectory.file("local.properties"))
     appVersionName.set(releaseAppVersionName)
     appVersionCode.set(releaseAppVersionCode)
-    supabaseUrl.set(runtimeConfigValue("NUVIO_SUPABASE_URL"))
-    supabaseAnonKey.set(runtimeConfigValue("NUVIO_SUPABASE_ANON_KEY"))
-    supabaseFallbackUrl.set(runtimeConfigValue("NUVIO_SUPABASE_FALLBACK_URL"))
+    supabaseUrl.set(runtimeConfigValue("LAQTA_SUPABASE_URL"))
+    supabaseAnonKey.set(runtimeConfigValue("LAQTA_SUPABASE_ANON_KEY"))
+    googleOAuthEnabled.set(runtimeConfigBoolean("LAQTA_GOOGLE_OAUTH_ENABLED", false))
+    supabaseFallbackUrl.set(runtimeConfigValue("LAQTA_SUPABASE_FALLBACK_URL"))
     sentryDsn.set(runtimeConfigValue("SENTRY_DSN"))
     tmdbApiKey.set(runtimeConfigValue("TMDB_API_KEY"))
     sentryEnvironment.set(

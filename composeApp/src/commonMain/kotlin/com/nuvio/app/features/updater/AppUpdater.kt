@@ -88,7 +88,11 @@ class AppUpdaterController internal constructor(
         checkForUpdates(force = false, showNoUpdateFeedback = false)
     }
 
-    fun checkForUpdates(force: Boolean, showNoUpdateFeedback: Boolean) {
+    fun checkForUpdates(
+        force: Boolean,
+        showNoUpdateFeedback: Boolean,
+        downloadWhenDebug: Boolean = false,
+    ) {
         if (!AppFeaturePolicy.inAppUpdaterEnabled || !AppUpdaterPlatform.isSupported) {
             if (showNoUpdateFeedback) {
                 scope.launch {
@@ -124,7 +128,7 @@ class AppUpdaterController internal constructor(
                 val alreadyDownloaded = currentState.update?.tag == update.tag &&
                     currentState.downloadedApkPath != null
                 val shouldAutoDownload = remoteNewer && (force || !ignored) &&
-                    !AppUpdaterPlatform.isDebugBuild && !alreadyDownloaded
+                    (!AppUpdaterPlatform.isDebugBuild || downloadWhenDebug) && !alreadyDownloaded
 
                 _uiState.update { state ->
                     state.copy(
@@ -167,7 +171,7 @@ class AppUpdaterController internal constructor(
 
                 if (showNoUpdateFeedback) {
                     NuvioToastController.show(
-                        if (error is NoChannelReleaseException) noUpdateMessage(channel)
+                        if (error is NoChannelReleaseException) getString(Res.string.updates_no_installable_release)
                         else error.message ?: getString(Res.string.updates_check_failed),
                     )
                 }

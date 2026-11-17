@@ -1,0 +1,8 @@
+<resources>
+    <string name="nuvio_link_title">Nuvio account</string>
+    <string name="nuvio_link_description">Sign in to Nuvio separately from Laqta. This connection lasts until the app closes. Data sync and watch parties are not available through this connection yet.</string>
+    <string name="nuvio_link_connect">Sign in to Nuvio</string>
+    <string name="nuvio_link_disconnect">Disconnect Nuvio</string>
+    <string name="nuvio_link_connected">Signed in as %1$s</string>
+    <string name="nuvio_link_error">Could not complete the Nuvio request. Check your connection and account details, then try again.</string>
+</resources>

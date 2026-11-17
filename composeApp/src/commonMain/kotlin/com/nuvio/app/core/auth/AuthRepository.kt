@@ -2,9 +2,11 @@ package com.nuvio.app.core.auth
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
+import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.storage.LocalAccountDataCleaner
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.exception.AuthRestException
+import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.exceptions.RestException
@@ -22,11 +24,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.ktor.http.Url
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
 private const val KEY_HAD_ACCOUNT_SESSION = "had_account_session"
 private const val KEY_SIGNED_OUT_NOTICE = "signed_out_notice"
+private const val GOOGLE_AUTH_REDIRECT_URL = "laqta://auth/callback"
+
+enum class GoogleLinkState {
+    Idle,
+    Starting,
+    WaitingForCallback,
+    Linked,
+}
 
 object AuthRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -38,9 +49,13 @@ object AuthRepository {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _googleLinkState = MutableStateFlow(GoogleLinkState.Idle)
+    val googleLinkState: StateFlow<GoogleLinkState> = _googleLinkState.asStateFlow()
+
     private var initialized = false
     private var sessionStatusJob: Job? = null
     private var validatedRemoteUserId: String? = null
+    private var pendingGoogleLink = false
     private val refreshMutex = Mutex()
 
     fun initialize() {
@@ -54,6 +69,11 @@ object AuthRepository {
                 email = null,
                 isAnonymous = true,
             )
+        }
+
+        if (!ServerConfigurationRepository.active.value.hasEmailPasswordAuth) {
+            if (savedAnonId == null) _state.value = AuthState.Unauthenticated
+            return
         }
 
         sessionStatusJob = scope.launch {
@@ -125,29 +145,156 @@ object AuthRepository {
         )
     }
 
-    suspend fun signUpWithEmail(email: String, password: String): Result<Unit> = runCatching {
+    suspend fun signUpWithEmail(email: String, password: String): Result<Unit> {
         _error.value = null
-        SupabaseProvider.client.auth.signUpWith(Email) {
-            this.email = email
-            this.password = password
+        val validationFailure = validateEmailPassword(email, password)
+        if (validationFailure != null) return validationFailure
+        return runCatching {
+            SupabaseProvider.client.auth.signUpWith(Email) {
+                this.email = email.trim()
+                this.password = password
+            }
+            Unit
+        }.onFailure { e ->
+            if (e is CancellationException) throw e
+            log.e(e) { "Email sign-up failed" }
+            _error.value = e.safeAuthErrorDescription()
+                ?: getString(Res.string.auth_sign_up_failed)
         }
-        Unit
-    }.onFailure { e ->
-        log.e(e) { "Email sign-up failed" }
-        _error.value = e.safeAuthErrorDescription()
-            ?: getString(Res.string.auth_sign_up_failed)
     }
 
-    suspend fun signInWithEmail(email: String, password: String): Result<Unit> = runCatching {
+    suspend fun signInWithEmail(email: String, password: String): Result<Unit> {
         _error.value = null
-        SupabaseProvider.client.auth.signInWith(Email) {
-            this.email = email
-            this.password = password
+        val validationFailure = validateEmailPassword(email, password)
+        if (validationFailure != null) return validationFailure
+        return runCatching {
+            SupabaseProvider.client.auth.signInWith(Email) {
+                this.email = email.trim()
+                this.password = password
+            }
+        }.onFailure { e ->
+            if (e is CancellationException) throw e
+            log.e(e) { "Email sign-in failed" }
+            _error.value = e.safeAuthErrorDescription()
+                ?: getString(Res.string.auth_sign_in_failed)
         }
-    }.onFailure { e ->
-        log.e(e) { "Email sign-in failed" }
-        _error.value = e.safeAuthErrorDescription()
-            ?: getString(Res.string.auth_sign_in_failed)
+    }
+
+    suspend fun signInWithGoogle(): Result<Unit> {
+        _error.value = null
+        if (!ServerConfigurationRepository.active.value.hasGoogleOAuth) {
+            val message = getString(Res.string.auth_google_unavailable)
+            _error.value = message
+            return Result.failure(IllegalStateException(message))
+        }
+        return runCatching {
+            SupabaseProvider.client.auth.signInWith(
+                provider = Google,
+                redirectUrl = GOOGLE_AUTH_REDIRECT_URL,
+            )
+        }.onFailure { error ->
+            if (error is CancellationException) throw error
+            log.e(error) { "Google sign-in failed to start" }
+            _error.value = error.safeAuthErrorDescription()
+                ?: getString(Res.string.auth_google_failed)
+        }
+    }
+
+    suspend fun linkGoogleIdentity(): Result<Unit> {
+        _error.value = null
+        val authState = state.value
+        val message = when {
+            !ServerConfigurationRepository.active.value.hasGoogleOAuth ->
+                getString(Res.string.auth_google_unavailable)
+            authState !is AuthState.Authenticated || authState.isAnonymous ->
+                getString(Res.string.auth_google_link_requires_account)
+            else -> null
+        }
+        if (message != null) {
+            _error.value = message
+            _googleLinkState.value = GoogleLinkState.Idle
+            return Result.failure(IllegalStateException(message))
+        }
+
+        pendingGoogleLink = true
+        _googleLinkState.value = GoogleLinkState.Starting
+        return runCatching {
+            SupabaseProvider.client.auth.linkIdentity(
+                provider = Google,
+                redirectUrl = GOOGLE_AUTH_REDIRECT_URL,
+            )
+            _googleLinkState.value = GoogleLinkState.WaitingForCallback
+        }.onFailure { error ->
+            if (error is CancellationException) throw error
+            pendingGoogleLink = false
+            _googleLinkState.value = GoogleLinkState.Idle
+            log.e(error) { "Google identity linking failed to start" }
+            _error.value = error.safeAuthErrorDescription()
+                ?: getString(Res.string.auth_google_failed)
+        }
+    }
+
+    fun handleAuthCallback(url: String): Boolean {
+        val parsedUrl = runCatching { Url(url) }.getOrNull() ?: return false
+        val path = parsedUrl.pathSegments.map(String::trim).filter(String::isNotBlank)
+        if (
+            parsedUrl.protocol.name != "laqta" ||
+            parsedUrl.host != "auth" ||
+            path != listOf("callback")
+        ) {
+            return false
+        }
+
+        val callbackError = parsedUrl.parameters["error_description"]
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+            ?: parsedUrl.parameters["error"]
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+        val code = parsedUrl.parameters["code"]
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+
+        scope.launch {
+            try {
+                if (callbackError != null) {
+                    throw IllegalStateException(callbackError)
+                }
+                val authorizationCode = code
+                    ?: throw IllegalStateException("OAuth callback did not include an authorization code")
+                SupabaseProvider.client.auth.exchangeCodeForSession(authorizationCode)
+                _error.value = null
+                if (pendingGoogleLink) {
+                    pendingGoogleLink = false
+                    _googleLinkState.value = GoogleLinkState.Linked
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                pendingGoogleLink = false
+                _googleLinkState.value = GoogleLinkState.Idle
+                log.e(error) { "Supabase auth callback failed" }
+                _error.value = callbackError
+                    ?: error.safeAuthErrorDescription()
+                    ?: getString(Res.string.auth_google_failed)
+            }
+        }
+        return true
+    }
+
+    private suspend fun validateEmailPassword(email: String, password: String): Result<Unit>? {
+        val configuration = ServerConfigurationRepository.active.value
+        val failureMessage = when {
+            !configuration.hasEmailPasswordAuth ->
+                getString(Res.string.auth_backend_not_configured)
+            email.isBlank() ->
+                getString(Res.string.auth_email_required)
+            password.length < 6 ->
+                getString(Res.string.auth_password_too_short)
+            else -> return null
+        }
+        _error.value = failureMessage
+        return Result.failure(IllegalArgumentException(failureMessage))
     }
 
     suspend fun signOut(): Result<Unit> {
@@ -158,7 +305,9 @@ object AuthRepository {
         AuthStorage.saveFlag(KEY_HAD_ACCOUNT_SESSION, false)
         AuthStorage.saveFlag(KEY_SIGNED_OUT_NOTICE, false)
         validatedRemoteUserId = null
-        val remoteSignOut = if (wasAnonymous) {
+        pendingGoogleLink = false
+        _googleLinkState.value = GoogleLinkState.Idle
+        val remoteSignOut = if (wasAnonymous || !ServerConfigurationRepository.active.value.hasEmailPasswordAuth) {
             Result.success(Unit)
         } else {
             runCatching { SupabaseProvider.client.auth.signOut() }
@@ -197,7 +346,13 @@ object AuthRepository {
         val anonymousClear = runCatching { AuthStorage.clearAnonymousUserId() }
         AuthStorage.saveFlag(KEY_HAD_ACCOUNT_SESSION, false)
         validatedRemoteUserId = null
-        val sessionClear = runCatching { SupabaseProvider.client.auth.clearSession() }
+        pendingGoogleLink = false
+        _googleLinkState.value = GoogleLinkState.Idle
+        val sessionClear = if (ServerConfigurationRepository.active.value.hasEmailPasswordAuth) {
+            runCatching { SupabaseProvider.client.auth.clearSession() }
+        } else {
+            Result.success(Unit)
+        }
         _state.value = AuthState.Unauthenticated
         val failure = anonymousClear.exceptionOrNull() ?: sessionClear.exceptionOrNull()
         val cancellation = sessionClear.exceptionOrNull() as? CancellationException

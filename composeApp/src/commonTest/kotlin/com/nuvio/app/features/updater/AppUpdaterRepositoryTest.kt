@@ -7,36 +7,44 @@ import kotlin.test.assertNull
 class AppUpdaterRepositoryTest {
     @Test
     fun channelsUseLaqtaRepositoryReleaseEndpoints() {
-        assertEquals("releases/latest", AppUpdaterRepository.releasePath(UpdateChannel.STABLE))
-        assertEquals("releases?per_page=100", AppUpdaterRepository.releasePath(UpdateChannel.BETA))
-        assertEquals(
-            "https://api.github.com/repos/Amr603241/LaqtaMobile/releases/latest",
-            AppUpdaterRepository.releaseUrl(UpdateChannel.STABLE),
-        )
         assertEquals(
             "https://api.github.com/repos/Amr603241/LaqtaMobile/releases?per_page=100",
-            AppUpdaterRepository.releaseUrl(UpdateChannel.BETA),
+            AppUpdaterRepository.releaseUrl(),
         )
     }
 
     @Test
     fun stableAcceptsReleasesFromAnyBranch() {
         listOf("main", "master", "cmp-rewrite", "1234567").forEach { branch ->
-            val response = """{
+            val response = """[{
                 "tag_name": "v1.1.0", "target_commitish": "$branch",
                 "assets": [{"name": "app.apk", "browser_download_url": "https://example.com/app.apk"}]
-            }"""
+            }]"""
             assertEquals("v1.1.0", select(response, UpdateChannel.STABLE)?.tag)
         }
     }
 
     @Test
     fun stableRejectsLegacyBetaNamesEvenIfGithubMarksThemStable() {
-        val response = """{
+        val response = """[{
             "tag_name": "1.1.0", "name": "Beta 1.1.0 Hotfix",
             "assets": [{"name": "app.apk", "browser_download_url": "https://example.com/app.apk"}]
-        }"""
+        }]"""
         assertNull(select(response, UpdateChannel.STABLE))
+    }
+
+    @Test
+    fun stableSkipsPrereleasesAndReleasesWithoutAnApk() {
+        val response = """[
+            {"tag_name": "1.3.0-beta.1", "prerelease": true, "assets": [
+                {"name": "app.apk", "browser_download_url": "https://example.com/beta.apk"}]},
+            {"tag_name": "1.2.0", "assets": [
+                {"name": "app.ipa", "browser_download_url": "https://example.com/app.ipa"}]},
+            {"tag_name": "1.1.0", "assets": [
+                {"name": "app.apk", "browser_download_url": "https://example.com/stable.apk"}]}
+        ]"""
+        assertEquals("1.1.0", select(response, UpdateChannel.STABLE)?.tag)
+        assertEquals("1.3.0-beta.1", select(response, UpdateChannel.BETA)?.tag)
     }
 
     @Test
@@ -65,17 +73,46 @@ class AppUpdaterRepositoryTest {
 
     @Test
     fun apkSelectionPreservesDeviceAbiPreference() {
-        val response = """{
+        val response = """[{
             "tag_name": "1.1.0", "assets": [
                 {"name": "app-universal.apk", "browser_download_url": "https://example.com/universal.apk"},
                 {"name": "app-arm64-v8a.apk", "browser_download_url": "https://example.com/arm64.apk"},
                 {"name": "app-x86_64.apk", "browser_download_url": "https://example.com/x86.apk"}
             ]
-        }"""
+        }]"""
         assertEquals("app-arm64-v8a.apk", select(response, UpdateChannel.STABLE)?.assetName)
         assertEquals(
             "app-universal.apk",
             AppUpdaterRepository.selectUpdate(response, UpdateChannel.STABLE, listOf("armeabi-v7a"))?.assetName,
+        )
+    }
+
+    @Test
+    fun incompatibleAbiIsNotSelectedForDevice() {
+        val response = """[{
+            "tag_name": "1.1.0", "assets": [
+                {"name": "app-x86_64_release.apk", "browser_download_url": "https://example.com/x86_64.apk"},
+                {"name": "app-arm64-v8a_release.apk", "browser_download_url": "https://example.com/arm64.apk"}
+            ]
+        }]"""
+        assertNull(AppUpdaterRepository.selectUpdate(response, UpdateChannel.STABLE, listOf("x86")))
+        assertEquals(
+            "app-arm64-v8a_release.apk",
+            AppUpdaterRepository.selectUpdate(response, UpdateChannel.STABLE, listOf("arm64-v8a"))?.assetName,
+        )
+    }
+
+    @Test
+    fun compatibleAbiWinsOverSimilarName() {
+        val response = """[{
+            "tag_name": "1.1.0", "assets": [
+                {"name": "app-x86_64.apk", "browser_download_url": "https://example.com/x86_64.apk"},
+                {"name": "app-x86.apk", "browser_download_url": "https://example.com/x86.apk"}
+            ]
+        }]"""
+        assertEquals(
+            "app-x86.apk",
+            AppUpdaterRepository.selectUpdate(response, UpdateChannel.STABLE, listOf("x86"))?.assetName,
         )
     }
 

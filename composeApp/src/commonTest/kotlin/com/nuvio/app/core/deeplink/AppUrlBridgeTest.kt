@@ -7,11 +7,10 @@ import kotlin.test.assertNull
 class AppUrlBridgeTest {
 
     @Test
-    fun `parses party invites from the app and the website`() {
-        assertEquals(AppDeepLink.Party("K7M2QX"), parseAppDeepLink("nuvio://party/k7m-2qx"))
-        assertEquals(AppDeepLink.Party("K7M2QX"), parseAppDeepLink("https://nuvio.tv/party/K7M2QX"))
-        assertEquals(AppDeepLink.Party("K7M2QX"), parseAppDeepLink("https://NUVIO.tv/party/K7M2QX/"))
-        assertNull(parseAppDeepLink("https://nuvio.tv/party/K7M2Q"))
+    fun `parses Laqta party invites and rejects obsolete website links`() {
+        assertEquals(AppDeepLink.Party("K7M2QX"), parseAppDeepLink("laqta://party/k7m-2qx"))
+        assertEquals(AppDeepLink.Party("K7M2QX"), parseAppDeepLink("nuvio://party/K7M2QX"))
+        assertNull(parseAppDeepLink("https://nuvio.tv/party/K7M2QX"))
         assertNull(parseAppDeepLink("https://nuvio.tv/link?code=K7M2QX"))
         assertNull(parseAppDeepLink("https://evil.example/party/K7M2QX"))
         assertNull(parseAppDeepLink("http://nuvio.tv/party/K7M2QX"))
@@ -21,7 +20,7 @@ class AppUrlBridgeTest {
     fun `parses existing notification meta deeplink`() {
         assertEquals(
             AppDeepLink.Meta(type = "series", id = "tt0944947"),
-            parseAppDeepLink("nuvio://meta?type=series&id=tt0944947"),
+            parseAppDeepLink("laqta://meta?type=series&id=tt0944947"),
         )
     }
 
@@ -29,7 +28,7 @@ class AppUrlBridgeTest {
     fun `parses direct nuvio addon install deeplink`() {
         assertEquals(
             AppDeepLink.AddonInstall("https://free.nebulapro.xyz/sports/i/free/manifest.json"),
-            parseAppDeepLink("nuvio://free.nebulapro.xyz/sports/i/free/manifest.json"),
+            parseAppDeepLink("laqta://free.nebulapro.xyz/sports/i/free/manifest.json"),
         )
     }
 
@@ -45,7 +44,7 @@ class AppUrlBridgeTest {
     fun `parses direct imdb detail deeplink`() {
         assertEquals(
             AppDeepLink.Meta(type = "series", id = "tt0944947"),
-            parseAppDeepLink("nuvio://series/tt0944947"),
+            parseAppDeepLink("laqta://series/tt0944947"),
         )
     }
 
@@ -53,7 +52,7 @@ class AppUrlBridgeTest {
     fun `parses provider imdb detail deeplink`() {
         assertEquals(
             AppDeepLink.Meta(type = "series", id = "tt0944947"),
-            parseAppDeepLink("nuvio://imdb/series/tt0944947"),
+            parseAppDeepLink("laqta://imdb/series/tt0944947"),
         )
     }
 
@@ -61,7 +60,7 @@ class AppUrlBridgeTest {
     fun `parses provider tmdb detail deeplink`() {
         assertEquals(
             AppDeepLink.Meta(type = "series", id = "tmdb:1399"),
-            parseAppDeepLink("nuvio://tmdb/tv/1399"),
+            parseAppDeepLink("laqta://tmdb/tv/1399"),
         )
     }
 

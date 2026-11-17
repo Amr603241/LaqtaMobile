@@ -47,6 +47,7 @@
 			<string>com.nuvio.app.auth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>laqta</string>
 				<string>nuvio</string>
 				<string>stremio</string>
 			</array>

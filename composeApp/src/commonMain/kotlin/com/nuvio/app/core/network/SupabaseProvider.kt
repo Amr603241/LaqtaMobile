@@ -4,6 +4,7 @@ import com.nuvio.app.core.build.AppVersionConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
@@ -35,7 +36,7 @@ object SupabaseProvider {
     @OptIn(SupabaseInternal::class)
     private fun createClient(): SupabaseClient {
         val configuration = ServerConfigurationRepository.active.value
-        val userAgent = "NuvioMobile/${AppVersionConfig.VERSION_NAME.ifBlank { "dev" }}"
+        val userAgent = "LaqtaMobile/${AppVersionConfig.VERSION_NAME.ifBlank { "dev" }}"
         lateinit var client: SupabaseClient
         client = createSupabaseClient(
             supabaseUrl = configuration.backendUrl,
@@ -110,7 +111,11 @@ object SupabaseProvider {
                     contentConverter = KotlinxWebsocketSerializationConverter(supabaseJson)
                 }
             }
-            install(Auth)
+            install(Auth) {
+                host = "auth"
+                scheme = "laqta"
+                flowType = FlowType.PKCE
+            }
             install(Postgrest)
             install(Functions)
             install(Storage)

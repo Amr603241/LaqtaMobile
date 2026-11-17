@@ -71,7 +71,6 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -96,19 +95,19 @@ import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_auth_already_have_account
 import nuvio.composeapp.generated.resources.compose_auth_continue_without_account
+import nuvio.composeapp.generated.resources.compose_auth_continue_with_google
 import nuvio.composeapp.generated.resources.compose_auth_create_account
 import nuvio.composeapp.generated.resources.compose_auth_dont_have_account
 import nuvio.composeapp.generated.resources.compose_auth_email
 import nuvio.composeapp.generated.resources.compose_auth_or_separator
 import nuvio.composeapp.generated.resources.compose_auth_password
+import nuvio.composeapp.generated.resources.auth_sign_up_success
 import nuvio.composeapp.generated.resources.compose_auth_sign_in
 import nuvio.composeapp.generated.resources.compose_auth_sign_in_subtitle
 import nuvio.composeapp.generated.resources.compose_auth_sign_up
 import nuvio.composeapp.generated.resources.compose_auth_sign_up_subtitle
 import nuvio.composeapp.generated.resources.compose_auth_store_locally
 import nuvio.composeapp.generated.resources.compose_auth_tagline
-import nuvio.composeapp.generated.resources.compose_auth_terms_link
-import nuvio.composeapp.generated.resources.compose_auth_terms_prefix
 import nuvio.composeapp.generated.resources.compose_auth_welcome_back
 import org.jetbrains.compose.resources.stringResource
 
@@ -198,26 +197,42 @@ fun AuthScreen(
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var isLoading by rememberSaveable { mutableStateOf(false) }
+    var authSuccessMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var emailFieldBounds by remember { mutableStateOf<Rect?>(null) }
     var passwordFieldBounds by remember { mutableStateOf<Rect?>(null) }
     var showServerSheet by rememberSaveable { mutableStateOf(false) }
     var showOfficialServerDialog by rememberSaveable { mutableStateOf(false) }
+    val signUpSuccessMessage = stringResource(Res.string.auth_sign_up_success)
+    val googleOAuthEnabled = serverConnectionState.activeServer.hasGoogleOAuth
 
     fun submitAuth() {
-        if (email.isBlank() || password.length < 6 || isLoading) return
+        if (isLoading) return
+        val signingUp = isSignUp
         DeviceLinkAuthRepository.cancel()
         isLoading = true
         focusManager.clearFocus(force = true)
         scope.launch {
-            if (isSignUp) AuthRepository.signUpWithEmail(email, password)
-            else AuthRepository.signInWithEmail(email, password)
-            isLoading = false
+            try {
+                val result = if (signingUp) {
+                    AuthRepository.signUpWithEmail(email, password)
+                } else {
+                    AuthRepository.signInWithEmail(email, password)
+                }
+                authSuccessMessage = if (signingUp && result.isSuccess) signUpSuccessMessage else null
+                if (signingUp && result.isSuccess) {
+                    isSignUp = false
+                    password = ""
+                }
+            } finally {
+                isLoading = false
+            }
         }
     }
 
     fun toggleAuthMode() {
         DeviceLinkAuthRepository.cancel()
         isSignUp = !isSignUp
+        authSuccessMessage = null
         AuthRepository.clearError()
     }
 
@@ -226,6 +241,20 @@ fun AuthScreen(
         focusManager.clearFocus(force = true)
         AuthRepository.clearError()
         DeviceLinkAuthRepository.start()
+    }
+
+    fun startGoogleSignIn() {
+        if (isLoading) return
+        focusManager.clearFocus(force = true)
+        DeviceLinkAuthRepository.cancel()
+        isLoading = true
+        scope.launch {
+            try {
+                AuthRepository.signInWithGoogle()
+            } finally {
+                isLoading = false
+            }
+        }
     }
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -286,8 +315,10 @@ fun AuthScreen(
                         passwordVisible = passwordVisible,
                         isLoading = isLoading,
                         authError = authError,
+                        authSuccessMessage = authSuccessMessage,
                         deviceLinkAuthState = deviceLinkAuthState,
                         deviceLinkEnabled = serverConnectionState.activeServer.capabilities.tvLogin,
+                        googleOAuthEnabled = googleOAuthEnabled,
                         formPaneWidth = if (compactLargeScreen) 460.dp else formPaneWidth,
                         brandHorizontalPadding = brandHorizontalPadding,
                         formHorizontalPadding = formHorizontalPadding,
@@ -295,10 +326,12 @@ fun AuthScreen(
                         scale = largeScale,
                         onEmailChange = {
                             email = it
+                            authSuccessMessage = null
                             AuthRepository.clearError()
                         },
                         onPasswordChange = {
                             password = it
+                            authSuccessMessage = null
                             AuthRepository.clearError()
                         },
                         onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
@@ -310,6 +343,7 @@ fun AuthScreen(
                             AuthRepository.signInAnonymously()
                         },
                         onStartDeviceLink = ::startDeviceLink,
+                        onGoogleSignIn = ::startGoogleSignIn,
                         onCancelDeviceLink = DeviceLinkAuthRepository::cancel,
                         onEmailBoundsChange = { emailFieldBounds = it },
                         onPasswordBoundsChange = { passwordFieldBounds = it },
@@ -322,15 +356,19 @@ fun AuthScreen(
                         passwordVisible = passwordVisible,
                         isLoading = isLoading,
                         authError = authError,
+                        authSuccessMessage = authSuccessMessage,
                         deviceLinkAuthState = deviceLinkAuthState,
                         deviceLinkEnabled = serverConnectionState.activeServer.capabilities.tvLogin,
+                        googleOAuthEnabled = googleOAuthEnabled,
                         statusBarTop = statusBarTop,
                         onEmailChange = {
                             email = it
+                            authSuccessMessage = null
                             AuthRepository.clearError()
                         },
                         onPasswordChange = {
                             password = it
+                            authSuccessMessage = null
                             AuthRepository.clearError()
                         },
                         onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
@@ -342,6 +380,7 @@ fun AuthScreen(
                             AuthRepository.signInAnonymously()
                         },
                         onStartDeviceLink = ::startDeviceLink,
+                        onGoogleSignIn = ::startGoogleSignIn,
                         onCancelDeviceLink = DeviceLinkAuthRepository::cancel,
                         onEmailBoundsChange = { emailFieldBounds = it },
                         onPasswordBoundsChange = { passwordFieldBounds = it },
@@ -419,8 +458,10 @@ private fun AuthMobileLayout(
     passwordVisible: Boolean,
     isLoading: Boolean,
     authError: String?,
+    authSuccessMessage: String?,
     deviceLinkAuthState: DeviceLinkAuthState,
     deviceLinkEnabled: Boolean,
+    googleOAuthEnabled: Boolean,
     statusBarTop: Dp,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
@@ -429,6 +470,7 @@ private fun AuthMobileLayout(
     onToggleAuthMode: () -> Unit,
     onContinueWithoutAccount: () -> Unit,
     onStartDeviceLink: () -> Unit,
+    onGoogleSignIn: () -> Unit,
     onCancelDeviceLink: () -> Unit,
     onEmailBoundsChange: (Rect) -> Unit,
     onPasswordBoundsChange: (Rect) -> Unit,
@@ -480,8 +522,10 @@ private fun AuthMobileLayout(
                 passwordVisible = passwordVisible,
                 isLoading = isLoading,
                 authError = authError,
+                authSuccessMessage = authSuccessMessage,
                 deviceLinkAuthState = deviceLinkAuthState,
                 deviceLinkEnabled = deviceLinkEnabled,
+                googleOAuthEnabled = googleOAuthEnabled,
                 metrics = MobileAuthFormMetrics,
                 onEmailChange = onEmailChange,
                 onPasswordChange = onPasswordChange,
@@ -490,6 +534,7 @@ private fun AuthMobileLayout(
                 onToggleAuthMode = onToggleAuthMode,
                 onContinueWithoutAccount = onContinueWithoutAccount,
                 onStartDeviceLink = onStartDeviceLink,
+                onGoogleSignIn = onGoogleSignIn,
                 onCancelDeviceLink = onCancelDeviceLink,
                 onEmailBoundsChange = onEmailBoundsChange,
                 onPasswordBoundsChange = onPasswordBoundsChange,
@@ -507,8 +552,10 @@ private fun AuthLargeLayout(
     passwordVisible: Boolean,
     isLoading: Boolean,
     authError: String?,
+    authSuccessMessage: String?,
     deviceLinkAuthState: DeviceLinkAuthState,
     deviceLinkEnabled: Boolean,
+    googleOAuthEnabled: Boolean,
     formPaneWidth: Dp,
     brandHorizontalPadding: Dp,
     formHorizontalPadding: Dp,
@@ -521,6 +568,7 @@ private fun AuthLargeLayout(
     onToggleAuthMode: () -> Unit,
     onContinueWithoutAccount: () -> Unit,
     onStartDeviceLink: () -> Unit,
+    onGoogleSignIn: () -> Unit,
     onCancelDeviceLink: () -> Unit,
     onEmailBoundsChange: (Rect) -> Unit,
     onPasswordBoundsChange: (Rect) -> Unit,
@@ -609,8 +657,10 @@ private fun AuthLargeLayout(
                     passwordVisible = passwordVisible,
                     isLoading = isLoading,
                     authError = authError,
+                    authSuccessMessage = authSuccessMessage,
                     deviceLinkAuthState = deviceLinkAuthState,
                     deviceLinkEnabled = deviceLinkEnabled,
+                    googleOAuthEnabled = googleOAuthEnabled,
                     metrics = formMetrics,
                     scale = scale,
                     onEmailChange = onEmailChange,
@@ -620,6 +670,7 @@ private fun AuthLargeLayout(
                     onToggleAuthMode = onToggleAuthMode,
                     onContinueWithoutAccount = onContinueWithoutAccount,
                     onStartDeviceLink = onStartDeviceLink,
+                    onGoogleSignIn = onGoogleSignIn,
                     onCancelDeviceLink = onCancelDeviceLink,
                     onEmailBoundsChange = onEmailBoundsChange,
                     onPasswordBoundsChange = onPasswordBoundsChange,
@@ -698,8 +749,10 @@ private fun AuthForm(
     passwordVisible: Boolean,
     isLoading: Boolean,
     authError: String?,
+    authSuccessMessage: String?,
     deviceLinkAuthState: DeviceLinkAuthState,
     deviceLinkEnabled: Boolean,
+    googleOAuthEnabled: Boolean,
     metrics: AuthFormMetrics,
     scale: Float = 1f,
     onEmailChange: (String) -> Unit,
@@ -709,11 +762,11 @@ private fun AuthForm(
     onToggleAuthMode: () -> Unit,
     onContinueWithoutAccount: () -> Unit,
     onStartDeviceLink: () -> Unit,
+    onGoogleSignIn: () -> Unit,
     onCancelDeviceLink: () -> Unit,
     onEmailBoundsChange: (Rect) -> Unit,
     onPasswordBoundsChange: (Rect) -> Unit,
 ) {
-    val uriHandler = LocalUriHandler.current
     Column(
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -769,12 +822,18 @@ private fun AuthForm(
             )
         }
 
-        if (isSignUp) {
-            Spacer(modifier = Modifier.height(14.dp * scale))
-            AuthTermsAcknowledgement(
-                scale = scale,
-                onTermsClick = { uriHandler.openUri("https://nuvio.tv/terms") },
-            )
+        if (authError == null) {
+            authSuccessMessage?.let { message ->
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = Color(0xFF80D6A0),
+                        fontSize = (13f * scale).sp,
+                        lineHeight = (18f * scale).sp,
+                    ),
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(metrics.primaryTop))
@@ -802,6 +861,17 @@ private fun AuthForm(
         AuthDivider(scale = scale)
 
         Spacer(modifier = Modifier.height(metrics.secondaryTop))
+
+        if (googleOAuthEnabled) {
+            AuthSecondaryButton(
+                text = stringResource(Res.string.compose_auth_continue_with_google),
+                enabled = !isLoading,
+                height = metrics.secondaryHeight,
+                scale = scale,
+                onClick = onGoogleSignIn,
+            )
+            Spacer(modifier = Modifier.height(14.dp * scale))
+        }
 
         if (!isSignUp && deviceLinkEnabled) {
             DeviceLinkAuthSection(
@@ -836,39 +906,6 @@ private fun AuthForm(
                 fontWeight = FontWeight.Normal,
             ),
             textAlign = TextAlign.Center,
-        )
-    }
-}
-
-@Composable
-private fun AuthTermsAcknowledgement(
-    scale: Float,
-    onTermsClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(Res.string.compose_auth_terms_prefix),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = AuthTextSecondary,
-                fontSize = (13f * scale).sp,
-                lineHeight = (18f * scale).sp,
-                fontWeight = FontWeight.Normal,
-            ),
-        )
-        Spacer(modifier = Modifier.width(4.dp * scale))
-        Text(
-            text = stringResource(Res.string.compose_auth_terms_link),
-            modifier = Modifier.clickable(onClick = onTermsClick),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = AuthTextPrimary,
-                fontSize = (13f * scale).sp,
-                lineHeight = (18f * scale).sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
         )
     }
 }
