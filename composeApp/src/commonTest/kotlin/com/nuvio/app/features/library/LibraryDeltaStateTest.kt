@@ -11,6 +11,30 @@ import kotlin.test.assertTrue
 class LibraryDeltaStateTest {
 
     @Test
+    fun `nuvio import preserves pending deletes and existing items`() {
+        val state = loadedState(listOf(libraryItem("removed"), libraryItem("existing")))
+        state.remove("removed", "movie")
+        val result = assertNotNull(state.importMissing(
+            state.snapshot(),
+            listOf(libraryItem("removed"), libraryItem("existing"), libraryItem("new"), libraryItem("new")),
+        ))
+        assertEquals(1, result.affectedCount)
+        assertEquals(setOf("existing", "new"), result.snapshot.items.mapTo(mutableSetOf()) { it.id })
+        assertEquals(listOf("removed"), result.snapshot.pendingDeleteKeys.map { it.contentId })
+    }
+
+    @Test
+    fun `nuvio import rejects snapshot when profile or library changes`() {
+        val state = loadedState(emptyList())
+        val beforeEdit = state.snapshot()
+        state.upsert(libraryItem("edited"))
+        assertEquals(null, state.importMissing(beforeEdit, listOf(libraryItem("remote"))))
+        val beforeProfileChange = state.snapshot()
+        state.beginProfileLoad(2)
+        assertEquals(null, state.importMissing(beforeProfileChange, listOf(libraryItem("remote"))))
+    }
+
+    @Test
     fun `removing final item records an explicit delete mutation`() {
         val state = loadedState(listOf(libraryItem("item")))
 

@@ -92,6 +92,14 @@ class SupabaseLibrarySyncAdapterTest {
         assertEquals("Title", item.name)
     }
 
+    @Test
+    fun `nullable genres from remote library decode as empty`() {
+        val item = json.decodeFromString<LibrarySyncItem>(
+            """{"content_id":"tt123","content_type":"movie","genres":null}""",
+        ).toLibraryItem()
+        assertEquals(emptyList(), item.genres)
+    }
+
     private fun loadedState(items: List<LibraryItem> = emptyList()): LibraryLocalState {
         val state = LibraryLocalState()
         val token = state.beginProfileLoad(profileId = 1).snapshot.token

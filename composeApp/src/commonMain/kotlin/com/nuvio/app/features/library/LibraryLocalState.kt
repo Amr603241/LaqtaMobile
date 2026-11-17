@@ -263,6 +263,27 @@ internal class LibraryLocalState {
         snapshotLocked()
     }
 
+    fun importMissing(
+        expected: LibraryLocalSnapshot,
+        items: Collection<LibraryItem>,
+    ): LibraryLocalMutation? = synchronized(lock) {
+        if (!isContentCurrentLocked(expected)) return@synchronized null
+        var count = 0
+        items.forEach { item ->
+            val key = libraryItemKey(item.id, item.type)
+            if (key !in itemsById && key !in pendingDeleteKeysByKey) {
+                itemsById[key] = item
+                pendingUpsertKeysByKey[key] = item.toLibrarySyncKey()
+                count++
+            }
+        }
+        if (count > 0) {
+            revision += 1L
+            contentRevision += 1L
+        }
+        LibraryLocalMutation(snapshotLocked(), count)
+    }
+
     fun toggle(item: LibraryItem): LibraryLocalToggleResult = synchronized(lock) {
         val key = libraryItemKey(item.id, item.type)
         val removedItem = itemsById.remove(key)

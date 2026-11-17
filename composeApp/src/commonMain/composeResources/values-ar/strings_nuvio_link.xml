@@ -1,8 +1,16 @@
 <resources>
     <string name="nuvio_link_title">حساب Nuvio</string>
-    <string name="nuvio_link_description">سجّل الدخول إلى Nuvio بشكل منفصل عن Laqta. يستمر الاتصال حتى إغلاق التطبيق. مزامنة البيانات وحفلات المشاهدة غير متاحتين عبر هذا الاتصال بعد.</string>
+    <string name="nuvio_link_description">سجّل الدخول إلى Nuvio بشكل منفصل عن Laqta. يستمر الاتصال حتى إغلاق التطبيق. يمكنك دمج مكتبتك مع Nuvio في الاتجاهين دون حذف أي عنصر. حفلات المشاهدة غير متاحة عبر هذا الاتصال.</string>
+    <string name="nuvio_link_sync_library">مزامنة المكتبة مع Nuvio</string>
+    <string name="nuvio_link_load_profiles">عرض ملفات Nuvio الشخصية</string>
+    <string name="nuvio_link_local_profile">ملف Laqta الحالي: %1$s. اختر ملف Nuvio الذي تريد دمج مكتبته معه.</string>
+    <string name="nuvio_link_profile">%1$s (الملف %2$d)</string>
+    <string name="nuvio_link_profile_selected">المحدد: %1$s (الملف %2$d)</string>
+    <string name="nuvio_link_profile_locked">%1$s (الملف %2$d) — محمي برمز PIN</string>
+    <string name="nuvio_link_no_profiles">لم يتم العثور على ملفات Nuvio الشخصية.</string>
+    <string name="nuvio_link_sync_done">تم استيراد %1$d عنصر من Nuvio وإرسال %2$d عنصر إلى Nuvio.</string>
     <string name="nuvio_link_connect">تسجيل الدخول إلى Nuvio</string>
     <string name="nuvio_link_disconnect">فصل حساب Nuvio</string>
     <string name="nuvio_link_connected">تم تسجيل الدخول باسم %1$s</string>
-    <string name="nuvio_link_error">تعذر تنفيذ طلب Nuvio. تحقق من اتصالك وبيانات الحساب وحاول مجددًا.</string>
+    <string name="nuvio_link_error">تعذر إكمال طلب Nuvio. قد تكون بعض عناصر المكتبة قد نُسخت بالفعل. تحقق من الحساب والملف والاتصال، ثم حاول مجددًا.</string>
 </resources>

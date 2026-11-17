@@ -32,7 +32,9 @@ import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.auth.GoogleLinkState
 import com.nuvio.app.core.auth.NuvioAccountLink
+import com.nuvio.app.core.auth.NuvioLibrarySyncResult
 import com.nuvio.app.core.auth.NuvioLinkState
+import com.nuvio.app.core.auth.NuvioRemoteProfile
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.ui.NuvioPrimaryButton
@@ -40,6 +42,7 @@ import com.nuvio.app.core.ui.NuvioStatusModal
 import com.nuvio.app.core.ui.NuvioSurfaceCard
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.features.profiles.ProfileRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
@@ -52,6 +55,14 @@ import nuvio.composeapp.generated.resources.nuvio_link_connect
 import nuvio.composeapp.generated.resources.nuvio_link_connected
 import nuvio.composeapp.generated.resources.nuvio_link_description
 import nuvio.composeapp.generated.resources.nuvio_link_disconnect
+import nuvio.composeapp.generated.resources.nuvio_link_sync_done
+import nuvio.composeapp.generated.resources.nuvio_link_sync_library
+import nuvio.composeapp.generated.resources.nuvio_link_load_profiles
+import nuvio.composeapp.generated.resources.nuvio_link_local_profile
+import nuvio.composeapp.generated.resources.nuvio_link_profile
+import nuvio.composeapp.generated.resources.nuvio_link_profile_selected
+import nuvio.composeapp.generated.resources.nuvio_link_profile_locked
+import nuvio.composeapp.generated.resources.nuvio_link_no_profiles
 import nuvio.composeapp.generated.resources.nuvio_link_error
 import nuvio.composeapp.generated.resources.nuvio_link_title
 import nuvio.composeapp.generated.resources.settings_account_delete_account
@@ -249,11 +260,15 @@ private fun AccountSettingsBody(
 @Composable
 private fun NuvioAccountLinkCard() {
     val state by NuvioAccountLink.state.collectAsStateWithLifecycle()
+    val localProfiles by ProfileRepository.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    var syncResult by remember(state, localProfiles.activeProfile?.profileIndex) {
+        mutableStateOf<NuvioLibrarySyncResult?>(null)
+    }
 
     NuvioSurfaceCard {
         Text(
@@ -270,7 +285,87 @@ private fun NuvioAccountLinkCard() {
         Spacer(modifier = Modifier.height(12.dp))
         when (val linked = state) {
             is NuvioLinkState.Connected -> {
+                var profiles by remember(linked.email) { mutableStateOf<List<NuvioRemoteProfile>?>(null) }
+                var selected by remember(linked.email, localProfiles.activeProfile?.profileIndex) {
+                    mutableStateOf<Int?>(null)
+                }
                 Text(stringResource(Res.string.nuvio_link_connected, linked.email))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    stringResource(
+                        Res.string.nuvio_link_local_profile,
+                        localProfiles.activeProfile?.name ?: ProfileRepository.activeProfileId.toString(),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        failed = false
+                        selected = null
+                        profiles = null
+                        syncResult = null
+                        scope.launch {
+                            try {
+                                profiles = NuvioAccountLink.profiles()
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (_: Exception) {
+                                failed = true
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                ) { Text(stringResource(Res.string.nuvio_link_load_profiles)) }
+                profiles?.let { available ->
+                    if (available.isEmpty()) Text(stringResource(Res.string.nuvio_link_no_profiles))
+                    available.forEach { profile ->
+                        Button(
+                            enabled = !busy && !profile.pinEnabled,
+                            onClick = { selected = profile.index; syncResult = null },
+                        ) {
+                            Text(
+                                stringResource(
+                                    when {
+                                        profile.pinEnabled -> Res.string.nuvio_link_profile_locked
+                                        selected == profile.index -> Res.string.nuvio_link_profile_selected
+                                        else -> Res.string.nuvio_link_profile
+                                    },
+                                    profile.name,
+                                    profile.index,
+                                ),
+                            )
+                        }
+                    }
+                }
+                Button(
+                    enabled = !busy && selected != null,
+                    onClick = {
+                        busy = true
+                        failed = false
+                        syncResult = null
+                        scope.launch {
+                            try {
+                                syncResult = NuvioAccountLink.syncLibrary(checkNotNull(selected))
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (_: Exception) {
+                                failed = true
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                ) { Text(stringResource(Res.string.nuvio_link_sync_library)) }
+                syncResult?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        stringResource(Res.string.nuvio_link_sync_done, it.imported, it.exported),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     enabled = !busy,

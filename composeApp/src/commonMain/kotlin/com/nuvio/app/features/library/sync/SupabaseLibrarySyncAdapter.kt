@@ -138,7 +138,7 @@ internal data class LibrarySyncItem(
     override val description: String? = null,
     @SerialName("release_info") override val releaseInfo: String? = null,
     @SerialName("imdb_rating") override val imdbRating: Float? = null,
-    override val genres: List<String> = emptyList(),
+    override val genres: List<String>? = emptyList(),
     @SerialName("addon_base_url") override val addonBaseUrl: String? = null,
     @SerialName("added_at") override val addedAt: Long = 0,
 ) : LibrarySyncFields
@@ -157,7 +157,7 @@ internal data class LibraryDeltaSyncItem(
     override val description: String? = null,
     @SerialName("release_info") override val releaseInfo: String? = null,
     @SerialName("imdb_rating") override val imdbRating: Float? = null,
-    override val genres: List<String> = emptyList(),
+    override val genres: List<String>? = emptyList(),
     @SerialName("addon_base_url") override val addonBaseUrl: String? = null,
     @SerialName("added_at") override val addedAt: Long = 0,
 ) : LibrarySyncFields
@@ -173,7 +173,7 @@ internal interface LibrarySyncFields {
     val description: String?
     val releaseInfo: String?
     val imdbRating: Float?
-    val genres: List<String>
+    val genres: List<String>?
     val addonBaseUrl: String?
     val addedAt: Long
 }
@@ -189,7 +189,7 @@ internal fun LibrarySyncFields.toLibraryItem(): LibraryItem =
         description = description,
         releaseInfo = releaseInfo,
         imdbRating = imdbRating?.toString(),
-        genres = genres,
+        genres = genres.orEmpty(),
         posterShape = posterShape.toPosterShape(),
         addonBaseUrl = addonBaseUrl,
         savedAtEpochMs = addedAt,

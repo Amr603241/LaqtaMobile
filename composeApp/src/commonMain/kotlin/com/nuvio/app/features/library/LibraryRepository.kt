@@ -368,6 +368,30 @@ object LibraryRepository {
         pushToServer(snapshot)
     }
 
+    internal fun nuvioSyncSnapshot(): LibraryLocalSnapshot {
+        ensureLoaded()
+        val snapshot = localState.snapshot()
+        check(snapshot.hasLoaded && snapshot.token.profileId == ProfileRepository.activeProfileId)
+        return snapshot
+    }
+
+    internal fun isNuvioSyncSnapshotCurrent(snapshot: LibraryLocalSnapshot): Boolean =
+        snapshot.token.profileId == ProfileRepository.activeProfileId && localState.isContentCurrent(snapshot)
+
+    internal fun importMissingItems(expected: LibraryLocalSnapshot, items: List<LibraryItem>): Int {
+        check(isNuvioSyncSnapshotCurrent(expected)) { "Laqta profile or library changed during sync" }
+        val result = checkNotNull(localState.importMissing(expected, items)) {
+            "Laqta profile or library changed during sync"
+        }
+        if (result.affectedCount > 0) {
+            log.i { "Imported ${result.affectedCount} library items from Nuvio profile=${expected.token.profileId}" }
+            persist(result.snapshot)
+            publish()
+            pushToServer(result.snapshot)
+        }
+        return result.affectedCount
+    }
+
     fun remove(id: String) {
         ensureLoaded()
         val removedType = if (AddonEventDispatcher.hasEnabledAddonFor(ADDON_LIBRARY_RESOURCE)) savedItem(id)?.type else null

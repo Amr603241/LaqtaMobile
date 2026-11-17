@@ -1,8 +1,16 @@
 <resources>
     <string name="nuvio_link_title">Nuvio account</string>
-    <string name="nuvio_link_description">Sign in to Nuvio separately from Laqta. This connection lasts until the app closes. Data sync and watch parties are not available through this connection yet.</string>
+    <string name="nuvio_link_description">Sign in to Nuvio separately from Laqta. This connection lasts until the app closes. You can merge your library with Nuvio in both directions; nothing is deleted. Watch parties are not available through this connection.</string>
+    <string name="nuvio_link_sync_library">Sync library with Nuvio</string>
+    <string name="nuvio_link_load_profiles">Load Nuvio profiles</string>
+    <string name="nuvio_link_local_profile">Current Laqta profile: %1$s. Choose the Nuvio profile to merge with it.</string>
+    <string name="nuvio_link_profile">%1$s (profile %2$d)</string>
+    <string name="nuvio_link_profile_selected">Selected: %1$s (profile %2$d)</string>
+    <string name="nuvio_link_profile_locked">%1$s (profile %2$d) — PIN protected</string>
+    <string name="nuvio_link_no_profiles">No Nuvio profiles found.</string>
+    <string name="nuvio_link_sync_done">Imported %1$d items from Nuvio and sent %2$d items to Nuvio.</string>
     <string name="nuvio_link_connect">Sign in to Nuvio</string>
     <string name="nuvio_link_disconnect">Disconnect Nuvio</string>
     <string name="nuvio_link_connected">Signed in as %1$s</string>
-    <string name="nuvio_link_error">Could not complete the Nuvio request. Check your connection and account details, then try again.</string>
+    <string name="nuvio_link_error">Could not complete the Nuvio request. Some library items may already have been copied. Check your account, profile and connection, then try again.</string>
 </resources>
