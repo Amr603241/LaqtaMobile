@@ -189,8 +189,8 @@ jobs:
             NUVIO_RELEASE_STORE_PASSWORD
             NUVIO_RELEASE_KEY_ALIAS
             NUVIO_RELEASE_KEY_PASSWORD
-            TRAKT_CLIENT_ID
-            TRAKT_CLIENT_SECRET
+            LAQTA_SUPABASE_URL
+            LAQTA_SUPABASE_ANON_KEY
           )
           for property_name in "${required_properties[@]}"; do
             if ! grep -Eq "^${property_name}=.+" local.properties; then
@@ -198,6 +198,10 @@ jobs:
               exit 1
             fi
           done
+          if ! grep -Eq '^TRAKT_CLIENT_ID=.+' local.properties ||
+             ! grep -Eq '^TRAKT_CLIENT_SECRET=.+' local.properties; then
+            echo "::warning::Trakt is unavailable because its client credentials are not configured."
+          fi
 
       - name: Build full release APKs
         run: ./gradlew :androidApp:assembleFullRelease -Pnuvio.app.versionName="${RELEASE_VERSION}" --stacktrace
