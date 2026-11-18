@@ -41,4 +41,34 @@ class AddonSyncTest {
         assertEquals(false, result.addons.single().enabled)
         assertEquals(addon.manifestUrl, result.addons.single().manifestUrl)
     }
+
+    @Test
+    fun `pending pushes replace only the same account and server snapshot`() {
+        val original = PendingAddonPush(
+            userId = "user-a",
+            backendUrl = "https://server-a.test",
+            addons = emptyList(),
+        )
+        val otherServer = original.copy(backendUrl = "https://server-b.test")
+        val otherAccount = original.copy(userId = "user-b")
+        val updated = original.copy(addons = listOf(AddonPushItem(url = addon.manifestUrl)))
+
+        assertEquals(
+            listOf(otherServer, otherAccount, updated),
+            replacePendingAddonPush(listOf(original, otherServer, otherAccount), updated),
+        )
+    }
+
+    @Test
+    fun `stale push completion does not remove a newer snapshot`() {
+        val old = PendingAddonPush(
+            userId = "user-a",
+            backendUrl = "https://server-a.test",
+            addons = emptyList(),
+        )
+        val newer = old.copy(addons = listOf(AddonPushItem(url = addon.manifestUrl)))
+
+        assertEquals(listOf(newer), removePendingAddonPush(listOf(newer), old))
+        assertEquals(emptyList(), removePendingAddonPush(listOf(newer), newer))
+    }
 }

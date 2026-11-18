@@ -32,6 +32,7 @@ actual object AddonStorage {
     private const val preferencesName = "nuvio_addons"
     private const val addonUrlsKey = "installed_manifest_urls"
     private const val addonEnabledStatesKey = "installed_manifest_enabled_states"
+    private const val pendingAddonPushesKey = "pending_addon_pushes"
 
     private var preferences: SharedPreferences? = null
 
@@ -71,6 +72,22 @@ actual object AddonStorage {
             ?.edit()
             ?.putString("${addonEnabledStatesKey}_$profileId", payload)
             ?.apply()
+    }
+
+    actual fun loadPendingAddonPushes(profileId: Int): String? =
+        preferences?.getString("${pendingAddonPushesKey}_$profileId", null)
+
+    actual fun savePendingAddonPushes(profileId: Int, payload: String?) {
+        preferences
+            ?.edit()
+            ?.let { editor ->
+                if (payload == null) {
+                    editor.remove("${pendingAddonPushesKey}_$profileId")
+                } else {
+                    editor.putString("${pendingAddonPushesKey}_$profileId", payload)
+                }
+                editor.apply()
+            }
     }
 }
 

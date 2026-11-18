@@ -129,6 +129,22 @@ class WatchProgressSourceCoordinatorTest {
     }
 
     @Test
+    fun `explicit source selection refreshes even when the source is unchanged`() = runBlocking {
+        var refreshCount = 0
+        val runner = runner(
+            onInvalidate = {},
+            onRefresh = { refreshCount += 1 },
+        )
+        val context = context(source = WatchProgressSource.NUVIO_SYNC)
+
+        runner.transition(context, refreshIfUnchanged = false, forceSnapshot = false)
+        val result = runner.transition(context, refreshIfUnchanged = true, forceSnapshot = true)
+
+        assertTrue(result.succeeded)
+        assertEquals(4, refreshCount)
+    }
+
+    @Test
     fun `authentication change refreshes same effective source without invalidating it`() = runBlocking {
         var refreshCount = 0
         var invalidationCount = 0

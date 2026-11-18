@@ -48,18 +48,16 @@ class AddonModelsTest {
             enabled = false,
             isRefreshing = true,
         )
+        val loaded = ManagedAddon(
+            manifestUrl = "https://loaded.example/manifest.json",
+            manifest = manifest(id = "loaded"),
+        )
 
         assertTrue(listOf(pending, disabledPending).hasPendingEnabledManifests())
+        assertTrue(listOf(pending, loaded).hasPendingEnabledManifests())
+        assertFalse(listOf(loaded).hasPendingEnabledManifests())
         assertTrue(listOf(pending, disabledPending).isWaitingForFirstEnabledManifest())
-        assertFalse(
-            listOf(
-                pending,
-                ManagedAddon(
-                    manifestUrl = "https://loaded.example/manifest.json",
-                    manifest = manifest(id = "loaded"),
-                ),
-            ).isWaitingForFirstEnabledManifest(),
-        )
+        assertFalse(listOf(pending, loaded).isWaitingForFirstEnabledManifest())
     }
 
     @Test

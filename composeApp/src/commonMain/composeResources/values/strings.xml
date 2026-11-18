@@ -83,6 +83,9 @@
     <string name="addons_overview_addons">Addons</string>
     <string name="addons_overview_catalogs">Catalogs</string>
     <string name="addons_refresh">Refresh addon</string>
+    <string name="addons_sync_failed">Addon changes could not sync. Your changes are saved and will be retried.</string>
+    <string name="addons_sync_in_progress">Syncing addon changes…</string>
+    <string name="addons_sync_pending">Addon changes are waiting to sync.</string>
     <string name="addons_section_add_addon">Add Addon</string>
     <string name="addons_section_installed">Installed Addons</string>
     <string name="addons_section_overview">Overview</string>
@@ -682,6 +685,7 @@
     <string name="downloads_status_downloading">Downloading • %1$s</string>
     <string name="downloads_status_failed">Failed</string>
     <string name="downloads_status_paused">Paused • %1$s</string>
+    <string name="downloads_insufficient_storage">Not enough free storage space to continue this download.</string>
     <string name="episodes_cd_watched">Watched</string>
     <string name="episodes_unavailable">Unavailable</string>
     <string name="episodes_season">Season %1$d</string>

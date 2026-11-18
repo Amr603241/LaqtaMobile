@@ -25,6 +25,14 @@ class PlaybackAvailabilityTest {
     }
 
     @Test
+    fun `pending enabled addon manifests do not block playback while loading`() {
+        val pendingAddon = addon().copy(manifest = null, isRefreshing = true)
+
+        assertTrue(canStream(addons = listOf(pendingAddon)))
+        assertFalse(canStream(addons = listOf(pendingAddon.copy(enabled = false))))
+    }
+
+    @Test
     fun `stream addons must support the requested type and id`() {
         val addons = listOf(addon())
         assertFalse(available(addons = addons, type = "series"))
@@ -60,6 +68,13 @@ class PlaybackAvailabilityTest {
         type: String = "movie",
         videoId: String = "tt123",
     ): Boolean = hasCompatiblePlaybackSource(addons, plugins, type, videoId)
+
+    private fun canStream(
+        addons: List<ManagedAddon> = emptyList(),
+        plugins: PluginsUiState = PluginsUiState(),
+        type: String = "movie",
+        videoId: String = "tt123",
+    ): Boolean = PlaybackAvailability(addons, plugins).canStream(type, videoId)
 
     private fun addon(
         resource: String = "stream",

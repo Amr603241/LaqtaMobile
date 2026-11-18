@@ -81,6 +81,9 @@
     <string name="addons_overview_addons">الإضافات</string>
     <string name="addons_overview_catalogs">الكتالوجات</string>
     <string name="addons_refresh">تحديث الإضافة</string>
+    <string name="addons_sync_failed">تعذرت مزامنة تغييرات الإضافات. حُفظت تغييراتك وستتم إعادة المحاولة.</string>
+    <string name="addons_sync_in_progress">جارٍ مزامنة تغييرات الإضافات…</string>
+    <string name="addons_sync_pending">تغييرات الإضافات بانتظار المزامنة.</string>
     <string name="addons_section_add_addon">إضافة جديدة</string>
     <string name="addons_section_installed">الإضافات المثبتة</string>
     <string name="addons_section_overview">نظرة عامة</string>
@@ -676,6 +679,7 @@
     <string name="downloads_status_downloading">جارٍ التنزيل • %1$s</string>
     <string name="downloads_status_failed">فشل</string>
     <string name="downloads_status_paused">متوقف مؤقتًا • %1$s</string>
+    <string name="downloads_insufficient_storage">لا توجد مساحة تخزين كافية لمتابعة هذا التنزيل.</string>
     <string name="episodes_cd_watched">تمت المشاهدة</string>
     <string name="episodes_unavailable">غير متاح</string>
     <string name="episodes_season">الموسم %1$d</string>

@@ -8,6 +8,7 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.addons.AddonManifest
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.ManagedAddon
+import com.nuvio.app.features.addons.hasPendingEnabledManifests
 import com.nuvio.app.features.addons.supportsResource
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.downloads.DownloadsRepository
@@ -32,7 +33,8 @@ internal class PlaybackAvailability(
     private val plugins: PluginsUiState,
 ) {
     fun canStream(type: String, videoId: String): Boolean =
-        hasCompatiblePlaybackSource(addons, plugins, type, videoId) ||
+        addons.hasPendingEnabledManifests() ||
+            hasCompatiblePlaybackSource(addons, plugins, type, videoId) ||
             MetaDetailsRepository.findEmbeddedStreams(videoId).isNotEmpty() ||
             ServerStreams.canServe(type, videoId)
 

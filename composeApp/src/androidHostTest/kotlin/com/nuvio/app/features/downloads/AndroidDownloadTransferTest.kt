@@ -15,6 +15,9 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -22,6 +25,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AndroidDownloadTransferTest {
     @get:Rule val temporary = TemporaryFolder()
 
@@ -87,6 +92,34 @@ class AndroidDownloadTransferTest {
     }
 
     @Test
+    fun insufficientStoragePreservesTheExistingPartialFile(): Unit = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(206)
+                    .setHeader("Content-Range", "bytes 5-10/11")
+                    .setBody(" world"),
+            )
+            val directory = temporary.newFolder()
+            val partial = File(directory, "video.mkv.part").apply { writeText("hello") }
+
+            val error = assertFailsWith<DownloadInsufficientStorageException> {
+                transferAndroidDownload(
+                    item = downloadItem(server.url("/video").toString()),
+                    directory = directory,
+                    validator = null,
+                    availableSpace = { 5L },
+                    onHeaders = { _, _ -> },
+                    onProgress = { _, _ -> },
+                )
+            }
+
+            assertEquals("hello", partial.readText())
+            assertTrue(error.message.orEmpty().isNotBlank())
+        }
+    }
+
+    @Test
     fun truncatedResponseNeverBecomesCompletedFile(): Unit = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("abcdefghij").setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
@@ -124,6 +157,7 @@ class AndroidDownloadTransferTest {
         assertTrue(shouldRetryAndroidDownload(IOException("connection lost"), 0))
         assertTrue(shouldRetryAndroidDownload(DownloadHttpException(503), 0))
         assertTrue(shouldRetryAndroidDownload(DownloadHttpException(429), 0))
+        assertFalse(shouldRetryAndroidDownload(DownloadInsufficientStorageException("full"), 0))
         assertFalse(shouldRetryAndroidDownload(DownloadHttpException(403), 0))
         assertFalse(shouldRetryAndroidDownload(IOException("connection lost"), 4))
     }

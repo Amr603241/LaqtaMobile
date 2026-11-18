@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.features.addons.hasPendingEnabledManifests
 import com.nuvio.app.features.debrid.DirectDebridStreamPreparer
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.debrid.DebridStreamPresentation
@@ -14,6 +15,7 @@ import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.plugins.PluginsUiState
 import com.nuvio.app.features.servers.ServerStreams
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -68,7 +70,17 @@ object StreamsRepository {
         )
     }
 
-    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
+    private fun load(
+        type: String,
+        videoId: String,
+        parentMetaId: String?,
+        season: Int?,
+        episode: Int?,
+        manualSelection: Boolean,
+        forceRefresh: Boolean,
+        manifestsReady: Boolean = false,
+    ) {
+        AddonRepository.initialize()
         val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
             PluginRepository.uiState.value
@@ -84,8 +96,11 @@ object StreamsRepository {
         )
         val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
         val currentState = _uiState.value
+        val addonManifestsPending = AddonRepository.uiState.value.addons.hasPendingEnabledManifests()
         if (
             !forceRefresh &&
+            !manifestsReady &&
+            !addonManifestsPending &&
             activeRequestKey == requestKey &&
             (currentState.groups.isNotEmpty() || currentState.emptyStateReason != null || currentState.isAnyLoading)
         ) {
@@ -96,6 +111,29 @@ object StreamsRepository {
         activeRequestKey = requestKey
         activeJob?.cancel()
         _uiState.value = StreamsUiState(requestToken = requestToken)
+
+        if (addonManifestsPending) {
+            _uiState.value = StreamsUiState(requestToken = requestToken, isAnyLoading = true)
+            lateinit var waitingJob: Job
+            waitingJob = scope.launch(start = CoroutineStart.LAZY) {
+                AddonRepository.awaitManifestsLoaded()
+                if (activeJob !== waitingJob || activeRequestKey != requestKey) return@launch
+                activeJob = null
+                load(
+                    type = type,
+                    videoId = videoId,
+                    parentMetaId = parentMetaId,
+                    season = season,
+                    episode = episode,
+                    manualSelection = manualSelection,
+                    forceRefresh = forceRefresh,
+                    manifestsReady = true,
+                )
+            }
+            activeJob = waitingJob
+            waitingJob.start()
+            return
+        }
 
         PlayerSettingsRepository.ensureLoaded()
         val playerSettings = PlayerSettingsRepository.uiState.value

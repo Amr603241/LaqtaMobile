@@ -281,7 +281,7 @@ object WatchProgressSourceCoordinator {
         return try {
             runTransition(
                 context = context,
-                refreshIfUnchanged = false,
+                refreshIfUnchanged = true,
                 forceSnapshot = true,
                 expectedCoordinatorGeneration = operationGeneration,
             )

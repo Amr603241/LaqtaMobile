@@ -9,9 +9,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.downloads_insufficient_storage
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jetbrains.compose.resources.getString
 
 internal val downloadHttpClient = OkHttpClient.Builder()
     .connectTimeout(60, TimeUnit.SECONDS)
@@ -23,11 +26,14 @@ internal val downloadHttpClient = OkHttpClient.Builder()
 
 internal class DownloadHttpException(val statusCode: Int) : IOException("Download failed: HTTP $statusCode")
 
+internal class DownloadInsufficientStorageException(message: String) : IOException(message)
+
 internal suspend fun transferAndroidDownload(
     item: DownloadItem,
     directory: File,
     validator: String?,
     client: OkHttpClient = downloadHttpClient,
+    availableSpace: (File) -> Long = { it.usableSpace },
     onHeaders: (totalBytes: Long?, validator: String?) -> Unit,
     onProgress: (downloadedBytes: Long, totalBytes: Long?) -> Unit,
 ): File = coroutineScope {
@@ -75,6 +81,10 @@ internal suspend fun transferAndroidDownload(
                     val responseValidator = response.header("ETag")?.takeUnless { it.startsWith("W/") }
                         ?: response.header("Last-Modified")
                     onHeaders(totalBytes, responseValidator)
+                    totalBytes
+                        ?.minus(startingBytes)
+                        ?.coerceAtLeast(0L)
+                        ?.let { requireDownloadSpace(directory, it, availableSpace) }
                     var downloaded = startingBytes
                     onProgress(downloaded, totalBytes)
                     body.byteStream().use { input ->
@@ -84,6 +94,7 @@ internal suspend fun transferAndroidDownload(
                                 ensureActive()
                                 val size = input.read(buffer)
                                 if (size == -1) break
+                                requireDownloadSpace(directory, size.toLong(), availableSpace)
                                 output.write(buffer, 0, size)
                                 downloaded += size
                                 onProgress(downloaded, totalBytes)
@@ -110,6 +121,17 @@ internal suspend fun transferAndroidDownload(
         transfer.await()
     } finally {
         activeCall.get()?.cancel()
+    }
+}
+
+internal suspend fun requireDownloadSpace(
+    directory: File,
+    requiredBytes: Long,
+    availableSpace: (File) -> Long = { it.usableSpace },
+) {
+    if (requiredBytes <= 0L) return
+    if (availableSpace(directory) < requiredBytes) {
+        throw DownloadInsufficientStorageException(getString(Res.string.downloads_insufficient_storage))
     }
 }
 

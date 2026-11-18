@@ -2,6 +2,7 @@ package com.nuvio.app.features.addons
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
@@ -9,6 +10,7 @@ import com.nuvio.app.features.profiles.ProfileRepository
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
+import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
@@ -43,11 +47,18 @@ internal data class AddonRow(
 )
 
 @Serializable
-private data class AddonPushItem(
+internal data class AddonPushItem(
     val url: String,
     val name: String = "",
     val enabled: Boolean = true,
     @SerialName("sort_order") val sortOrder: Int = 0,
+)
+
+@Serializable
+internal data class PendingAddonPush(
+    val userId: String?,
+    val backendUrl: String,
+    val addons: List<AddonPushItem>,
 )
 
 private const val ADDON_PUSH_DEBOUNCE_MS = 500L
@@ -58,19 +69,26 @@ object AddonRepository {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val _uiState = MutableStateFlow(AddonsUiState())
     val uiState: StateFlow<AddonsUiState> = _uiState.asStateFlow()
+    private val _syncUiState = MutableStateFlow(AddonSyncUiState())
+    val syncUiState: StateFlow<AddonSyncUiState> = _syncUiState.asStateFlow()
 
     private var initialized = false
     private var currentProfileId: Int = 1
     private val activeRefreshJobs = mutableMapOf<String, Job>()
     private val pushJobsByProfile = mutableMapOf<Int, Job>()
     private val serverSyncMutex = Mutex()
+    private val pendingPushStorageLock = SynchronizedObject()
 
     fun initialize() {
         val effectiveProfileId = resolveEffectiveProfileId(ProfileRepository.activeProfileId)
-        if (initialized) return
+        if (initialized) {
+            updateSyncUiState()
+            return
+        }
         initialized = true
         currentProfileId = effectiveProfileId
         log.d { "initialize() — loading local addons for profile $currentProfileId" }
+        updateSyncUiState(isSyncing = false, hasFailed = false)
 
         val storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
         val enabledByUrl = loadLocalEnabledStates()
@@ -103,6 +121,7 @@ object AddonRepository {
         currentProfileId = effectiveProfileId
         initialized = false
         _uiState.value = AddonsUiState()
+        updateSyncUiState(isSyncing = false, hasFailed = false)
     }
 
     fun clearLocalState() {
@@ -112,6 +131,7 @@ object AddonRepository {
         currentProfileId = 1
         initialized = false
         _uiState.value = AddonsUiState()
+        _syncUiState.value = AddonSyncUiState()
     }
 
     suspend fun pullFromServer(profileId: Int) {
@@ -120,6 +140,8 @@ object AddonRepository {
         currentProfileId = effectiveProfileId
         log.i { "pullFromServer() — profileId=$profileId, initialized=$initialized" }
         runCatching {
+            initialize()
+            retryPendingPush(effectiveProfileId)
             if (!ServerConfigurationRepository.active.value.isCustom) {
                 pullFromLaqtaServer(currentProfileId)
                 return@runCatching
@@ -192,11 +214,9 @@ object AddonRepository {
     }
 
     suspend fun awaitManifestsLoaded() {
-        if (_uiState.value.addons.isEmpty()) return
+        if (!_uiState.value.addons.hasPendingEnabledManifests()) return
         uiState.first { state ->
-            state.addons.isEmpty() ||
-                state.addons.any { it.manifest != null } ||
-                state.addons.none { it.isRefreshing }
+            !state.addons.hasPendingEnabledManifests()
         }
     }
 
@@ -268,8 +288,7 @@ object AddonRepository {
                 ),
             )
         }
-        persist()
-        pushToServer()
+        persistAndPush()
         return AddAddonResult.Success(manifest)
     }
 
@@ -283,8 +302,7 @@ object AddonRepository {
             if (changed) current.copy(addons = updatedAddons) else current
         }
         if (!changed) return
-        persist()
-        pushToServer()
+        persistAndPush()
     }
 
     fun moveAddon(fromIndex: Int, toIndex: Int) {
@@ -307,8 +325,7 @@ object AddonRepository {
             current.copy(addons = reordered)
         }
         if (!changed) return
-        persist()
-        pushToServer()
+        persistAndPush()
     }
 
     fun setAddonEnabled(manifestUrl: String, enabled: Boolean) {
@@ -329,8 +346,7 @@ object AddonRepository {
             )
         }
         if (!changed) return
-        persist()
-        pushToServer()
+        persistAndPush()
         if (shouldRefresh) {
             refreshAddon(manifestUrl)
         }
@@ -401,45 +417,156 @@ object AddonRepository {
         activeRefreshJobs[manifestUrl] = refreshJob
     }
 
-    private fun pushToServer() {
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) return
+    fun retryPendingPush() {
         val profileId = currentProfileId
-        val addons = _uiState.value.addons.toPushItems()
-        val authState = AuthRepository.state.value
+        val pending = pendingPushForCurrentScope(profileId) ?: return
+        schedulePush(pending, debounceMs = 0L)
+    }
+
+    private fun persistAndPush() {
+        if (isUsingPrimaryAddonsFromSecondaryProfile()) {
+            persist()
+            return
+        }
+        val profileId = currentProfileId
         val server = ServerConfigurationRepository.active.value
+        val authState = AuthRepository.state.value as? AuthState.Authenticated
+        val pending = PendingAddonPush(
+            userId = authState?.userId,
+            backendUrl = server.backendUrl,
+            addons = _uiState.value.addons.toPushItems(),
+        )
+        savePendingPush(profileId, pending)
+        persist()
+        schedulePush(pending)
+    }
+
+    private fun schedulePush(
+        pending: PendingAddonPush,
+        debounceMs: Long = ADDON_PUSH_DEBOUNCE_MS,
+    ) {
+        val profileId = currentProfileId
+        if (pendingPushForCurrentScope(profileId) != pending) return
         pushJobsByProfile[profileId]?.cancel()
         var pushJob: Job? = null
         pushJob = scope.launch {
+            updateSyncUiState(isSyncing = true, hasFailed = false)
             try {
-                delay(ADDON_PUSH_DEBOUNCE_MS)
-                log.d { "pushToServer() — profileId=$profileId, pushing ${addons.size} addons" }
-                val params = buildJsonObject {
-                    put("p_profile_id", profileId)
-                    put("p_addons", json.encodeToJsonElement(addons))
-                    putSyncOriginClientId()
-                }
-                if (server.isCustom) {
-                    SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
-                } else {
-                    serverSyncMutex.withLock {
-                        if (currentProfileId != profileId || AuthRepository.state.value != authState ||
-                            ServerConfigurationRepository.active.value != server
-                        ) return@launch
-                        SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
-                    }
-                }
-                log.d { "pushToServer() — success" }
+                if (debounceMs > 0) delay(debounceMs)
+                pushPending(profileId, pending)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
                 log.e(error) { "pushToServer() — FAILED" }
+                if (profileId == currentProfileId) {
+                    updateSyncUiState(isSyncing = false, hasFailed = true)
+                }
             } finally {
                 if (pushJobsByProfile[profileId] === pushJob) {
                     pushJobsByProfile.remove(profileId)
+                    if (profileId == currentProfileId) {
+                        updateSyncUiState(isSyncing = false)
+                    }
                 }
             }
         }
         pushJobsByProfile[profileId] = pushJob
+    }
+
+    private suspend fun retryPendingPush(profileId: Int) {
+        if (profileId != currentProfileId) return
+        pushJobsByProfile[profileId]?.join()
+        val pending = pendingPushForCurrentScope(profileId) ?: run {
+            if (profileId == currentProfileId) {
+                updateSyncUiState(isSyncing = false, hasFailed = false)
+            }
+            return
+        }
+        if (profileId == currentProfileId) {
+            updateSyncUiState(isSyncing = true, hasFailed = false)
+        }
+        try {
+            pushPending(profileId, pending)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (profileId == currentProfileId) {
+                updateSyncUiState(isSyncing = false, hasFailed = true)
+            }
+            throw error
+        }
+    }
+
+    private suspend fun pushPending(profileId: Int, pending: PendingAddonPush) {
+        if (profileId != currentProfileId || pendingPushForCurrentScope(profileId) != pending) return
+        val params = buildJsonObject {
+            put("p_profile_id", profileId)
+            put("p_addons", json.encodeToJsonElement(pending.addons))
+            putSyncOriginClientId()
+        }
+        val pushed = serverSyncMutex.withLock {
+            if (profileId != currentProfileId || pendingPushForCurrentScope(profileId) != pending) {
+                false
+            } else {
+                SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
+                true
+            }
+        }
+        if (!pushed) return
+        removePendingPush(profileId, pending)
+        log.d { "pushToServer() — success" }
+        if (profileId == currentProfileId) {
+            updateSyncUiState(isSyncing = false, hasFailed = false)
+        }
+    }
+
+    private fun pendingPushForCurrentScope(profileId: Int): PendingAddonPush? {
+        val server = ServerConfigurationRepository.active.value
+        val userId = (AuthRepository.state.value as? AuthState.Authenticated)?.userId
+        return loadPendingPushes(profileId).firstOrNull {
+            it.backendUrl == server.backendUrl && it.userId == userId
+        }
+    }
+
+    private fun loadPendingPushes(profileId: Int): List<PendingAddonPush> =
+        AddonStorage.loadPendingAddonPushes(profileId)
+            ?.let { json.decodeFromString<List<PendingAddonPush>>(it) }
+            .orEmpty()
+
+    private fun savePendingPush(profileId: Int, pending: PendingAddonPush) {
+        synchronized(pendingPushStorageLock) {
+            val updated = replacePendingAddonPush(loadPendingPushes(profileId), pending)
+            AddonStorage.savePendingAddonPushes(
+                profileId,
+                updated.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) },
+            )
+        }
+        if (profileId == currentProfileId) {
+            updateSyncUiState(isSyncing = false, hasFailed = false)
+        }
+    }
+
+    private fun removePendingPush(profileId: Int, pending: PendingAddonPush) {
+        synchronized(pendingPushStorageLock) {
+            val updated = removePendingAddonPush(loadPendingPushes(profileId), pending)
+            AddonStorage.savePendingAddonPushes(
+                profileId,
+                updated.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) },
+            )
+        }
+    }
+
+    private fun updateSyncUiState(
+        isSyncing: Boolean? = null,
+        hasFailed: Boolean? = null,
+    ) {
+        val hasPending = pendingPushForCurrentScope(currentProfileId) != null
+        val previous = _syncUiState.value
+        _syncUiState.value = AddonSyncUiState(
+            hasPendingChanges = hasPending,
+            isSyncing = isSyncing ?: previous.isSyncing,
+            hasFailed = hasPending && (hasFailed ?: previous.hasFailed),
+        )
     }
 
     private fun markRefreshing(manifestUrl: String) {
@@ -490,6 +617,24 @@ object AddonRepository {
         return active != null && active.profileIndex != 1 && active.usesPrimaryAddons
     }
 }
+
+internal fun replacePendingAddonPush(
+    pendingPushes: List<PendingAddonPush>,
+    replacement: PendingAddonPush,
+): List<PendingAddonPush> =
+    pendingPushes.filterNot {
+        it.userId == replacement.userId && it.backendUrl == replacement.backendUrl
+    } + replacement
+
+internal fun removePendingAddonPush(
+    pendingPushes: List<PendingAddonPush>,
+    completed: PendingAddonPush,
+): List<PendingAddonPush> =
+    pendingPushes.filterNot {
+        it.userId == completed.userId &&
+            it.backendUrl == completed.backendUrl &&
+            it.addons == completed.addons
+    }
 
 private fun List<ManagedAddon>.toPushItems(): List<AddonPushItem> =
     distinctBy { it.manifestUrl }.mapIndexed { index, addon ->

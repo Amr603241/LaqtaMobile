@@ -26,6 +26,7 @@ import platform.Foundation.NSUserDefaults
 actual object AddonStorage {
     private const val addonUrlsKey = "installed_manifest_urls"
     private const val addonEnabledStatesKey = "installed_manifest_enabled_states"
+    private const val pendingAddonPushesKey = "pending_addon_pushes"
 
     actual fun loadInstalledAddonUrls(profileId: Int): List<String> =
         NSUserDefaults.standardUserDefaults
@@ -59,6 +60,18 @@ actual object AddonStorage {
             payload,
             forKey = "${addonEnabledStatesKey}_$profileId",
         )
+    }
+
+    actual fun loadPendingAddonPushes(profileId: Int): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey("${pendingAddonPushesKey}_$profileId")
+
+    actual fun savePendingAddonPushes(profileId: Int, payload: String?) {
+        val key = "${pendingAddonPushesKey}_$profileId"
+        if (payload == null) {
+            NSUserDefaults.standardUserDefaults.removeObjectForKey(key)
+        } else {
+            NSUserDefaults.standardUserDefaults.setObject(payload, forKey = key)
+        }
     }
 }
 

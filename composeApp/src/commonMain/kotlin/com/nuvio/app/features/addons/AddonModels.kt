@@ -85,6 +85,12 @@ data class AddonsUiState(
     val addons: List<ManagedAddon> = emptyList(),
 )
 
+data class AddonSyncUiState(
+    val hasPendingChanges: Boolean = false,
+    val isSyncing: Boolean = false,
+    val hasFailed: Boolean = false,
+)
+
 data class AddonOverview(
     val totalAddons: Int,
     val activeAddons: Int,

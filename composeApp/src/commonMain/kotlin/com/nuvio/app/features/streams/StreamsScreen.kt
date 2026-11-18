@@ -698,7 +698,6 @@ internal fun StreamList(
     modifier: Modifier = Modifier,
 ) {
     val filteredGroups = uiState.filteredGroups
-    val hasGroups = filteredGroups.isNotEmpty()
     val hasAnyStreams = filteredGroups.any { it.streams.isNotEmpty() }
     val anyLoading = filteredGroups.any { it.isLoading }
     val torrentNotSupportedText = stringResource(Res.string.streams_torrent_not_supported)
@@ -755,7 +754,7 @@ internal fun StreamList(
             }
         }
         when {
-            hasGroups && anyLoading && !hasAnyStreams -> {
+            uiState.isAnyLoading && !hasAnyStreams -> {
                 item {
                     LoadingStateBlock(findingStreamsText = findingStreamsText)
                 }

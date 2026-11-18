@@ -95,6 +95,7 @@ internal fun AddonsSettingsPageContent(
     }
 
     val uiState by AddonRepository.uiState.collectAsStateWithLifecycle()
+    val syncUiState by AddonRepository.syncUiState.collectAsStateWithLifecycle()
     val pendingTrackingConsent by AddonRepository.pendingTrackingConsent.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
@@ -196,6 +197,9 @@ internal fun AddonsSettingsPageContent(
         if (selectedTab == ADDONS_MANAGE_TAB) {
             SectionHeader(stringResource(Res.string.addons_section_overview))
             OverviewCard(overview = overview)
+            if (syncUiState.hasPendingChanges) {
+                AddonSyncStatusCard(syncUiState)
+            }
 
             SectionHeader(stringResource(Res.string.addons_section_add_addon))
             AddAddonCard(
@@ -647,6 +651,34 @@ private fun OverviewCard(overview: AddonOverview) {
                 value = overview.totalCatalogs.toString(),
                 label = stringResource(Res.string.addons_overview_catalogs),
                 modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddonSyncStatusCard(state: AddonSyncUiState) {
+    NuvioSurfaceCard {
+        Text(
+            text = stringResource(
+                when {
+                    state.hasFailed -> Res.string.addons_sync_failed
+                    state.isSyncing -> Res.string.addons_sync_in_progress
+                    else -> Res.string.addons_sync_pending
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (state.hasFailed) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+        if (!state.isSyncing) {
+            Spacer(modifier = Modifier.height(12.dp))
+            NuvioPrimaryButton(
+                text = stringResource(Res.string.action_retry),
+                onClick = AddonRepository::retryPendingPush,
             )
         }
     }
