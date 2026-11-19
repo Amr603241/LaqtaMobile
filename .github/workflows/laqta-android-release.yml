@@ -112,7 +112,7 @@ jobs:
         run: |
           ./gradlew :androidApp:assembleFullRelease --no-build-cache --no-configuration-cache \
             --max-workers=2 -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
-            -Pkotlin.daemon.jvmargs=-Xmx2048m
+            -Pkotlin.daemon.jvmargs=-Xmx6g
 
       - name: Verify APKs and signing continuity
         env:
