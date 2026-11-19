@@ -25,13 +25,15 @@ val localProps = Properties().apply {
     val propsFile = rootProject.file("local.properties")
     if (propsFile.exists()) propsFile.inputStream().use { load(it) }
 }
-val releaseStoreFile = localProps.getProperty("NUVIO_RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() }
-val releaseStorePassword = localProps.getProperty("NUVIO_RELEASE_STORE_PASSWORD")?.takeIf { it.isNotBlank() }
-val releaseKeyPassword = localProps.getProperty("NUVIO_RELEASE_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
-val releaseKeystore = releaseStoreFile?.let(rootProject::file)
 fun envOrLocalProperty(key: String): String? =
     providers.environmentVariable(key).orNull?.trim()?.takeIf { it.isNotBlank() }
         ?: localProps.getProperty(key)?.trim()?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = envOrLocalProperty("NUVIO_RELEASE_STORE_FILE")
+val releaseStorePassword = envOrLocalProperty("NUVIO_RELEASE_STORE_PASSWORD")
+val releaseKeyPassword = envOrLocalProperty("NUVIO_RELEASE_KEY_PASSWORD")
+val releaseKeyAlias = envOrLocalProperty("NUVIO_RELEASE_KEY_ALIAS") ?: "laqta"
+val releaseKeystore = releaseStoreFile?.let(rootProject::file)
 
 val sentryAuthToken = envOrLocalProperty("SENTRY_AUTH_TOKEN")
 val sentryOrg = envOrLocalProperty("SENTRY_ORG")
@@ -58,6 +60,9 @@ if (buildsReleaseApks) {
     check(releaseStorePassword != null && releaseKeyPassword != null) {
         "Release keystore and key passwords must be configured for release APK builds."
     }
+    check(releaseKeyAlias == "laqta") {
+        "The release signing key alias must be laqta."
+    }
 }
 
 android {
@@ -71,7 +76,7 @@ android {
                 storeFile = releaseKeystore
                 storeType = "PKCS12"
                 storePassword = releaseStorePassword
-                keyAlias = "laqta"
+                keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
             }
         }

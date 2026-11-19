@@ -1,4 +1,4 @@
-name: Build Mobile Release
+name: Legacy Build Mobile Release
 
 on:
   workflow_dispatch:

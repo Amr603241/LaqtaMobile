@@ -1,0 +1,196 @@
+name: Laqta Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example v1.1.1)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: laqta-android-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TAG_NAME: ${{ inputs.tag || github.ref_name }}
+      JAVA_TOOL_OPTIONS: -Duser.language=en -Duser.country=US
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - name: Validate release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^MARKETING_VERSION=//p' iosApp/Configuration/Version.xcconfig)"
+          code="$(sed -n 's/^CURRENT_PROJECT_VERSION=//p' iosApp/Configuration/Version.xcconfig)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$TAG_NAME" != "v${version}" || ! "$code" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::The tag, stable version and version code do not match."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-37.1" "build-tools;36.0.0"
+
+      - name: Configure signing and runtime properties
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.NUVIO_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_PROPERTIES_BASE64: ${{ secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
+          NUVIO_RELEASE_STORE_PASSWORD: ${{ secrets.NUVIO_RELEASE_STORE_PASSWORD }}
+          NUVIO_RELEASE_KEY_ALIAS: ${{ secrets.NUVIO_RELEASE_KEY_ALIAS }}
+          NUVIO_RELEASE_KEY_PASSWORD: ${{ secrets.NUVIO_RELEASE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in RELEASE_KEYSTORE_BASE64 RELEASE_PROPERTIES_BASE64 NUVIO_RELEASE_STORE_PASSWORD NUVIO_RELEASE_KEY_ALIAS NUVIO_RELEASE_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required secret: $name"
+              exit 1
+            fi
+          done
+          if [[ "$NUVIO_RELEASE_KEY_ALIAS" != laqta ]]; then
+            echo "::error::The release signing key alias must be laqta."
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/laqta-release.p12"
+          printf '%s' "$RELEASE_PROPERTIES_BASE64" | base64 --decode > local.properties
+          sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_[^=]*)[[:space:]]*=/d' local.properties
+          for name in LAQTA_SUPABASE_URL LAQTA_SUPABASE_ANON_KEY; do
+            if ! grep -Eq "^[[:space:]]*${name}[[:space:]]*=[[:space:]]*[^[:space:]]" local.properties; then
+              echo "::error::Missing required runtime property: $name"
+              exit 1
+            fi
+          done
+
+      - name: Build signed full release APKs
+        env:
+          NUVIO_RELEASE_STORE_FILE: ${{ runner.temp }}/laqta-release.p12
+          NUVIO_RELEASE_STORE_PASSWORD: ${{ secrets.NUVIO_RELEASE_STORE_PASSWORD }}
+          NUVIO_RELEASE_KEY_ALIAS: ${{ secrets.NUVIO_RELEASE_KEY_ALIAS }}
+          NUVIO_RELEASE_KEY_PASSWORD: ${{ secrets.NUVIO_RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew :androidApp:assembleFullRelease --no-build-cache --no-configuration-cache \
+            --max-workers=2 -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
+            -Pkotlin.daemon.jvmargs=-Xmx2048m
+
+      - name: Verify APKs and signing continuity
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          output="androidApp/build/outputs/apk/full/release"
+          previous_tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName')"
+          mkdir -p "$RUNNER_TEMP/previous-release"
+          gh release download "$previous_tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*universal*.apk' --dir "$RUNNER_TEMP/previous-release"
+          mapfile -t previous_apks < <(find "$RUNNER_TEMP/previous-release" -maxdepth 1 -name '*.apk' -type f)
+          if [[ "${#previous_apks[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one universal APK in the latest stable release."
+            exit 1
+          fi
+          previous_signature="$("$tools/apksigner" verify --print-certs "${previous_apks[0]}")"
+          previous_cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$previous_signature")"
+          previous_badging="$("$tools/aapt" dump badging "${previous_apks[0]}")"
+          previous_package="$(grep '^package:' <<< "$previous_badging")"
+          previous_code="$(sed -n "s/^package:.* versionCode='\([0-9]*\)'.*/\1/p" <<< "$previous_package")"
+          if [[ -z "$previous_cert" || "$previous_package" != "package: name='com.laqta.app' "* || ! "$previous_code" =~ ^[0-9]+$ ]]; then
+            echo "::error::The previous release APK has invalid signing or package metadata."
+            exit 1
+          fi
+          if [[ "$previous_tag" != "$TAG_NAME" && "$VERSION_CODE" -le "$previous_code" ]]; then
+            echo "::error::The version code must be higher than the latest stable release."
+            exit 1
+          fi
+          jq -e --arg version "$VERSION" --argjson code "$VERSION_CODE" '
+            .applicationId == "com.laqta.app" and
+            (.elements | length == 5) and
+            all(.elements[]; .versionName == $version and .versionCode == $code) and
+            ([.elements[].outputFile] | sort) == ([
+              "androidApp-full-universal-release.apk", "androidApp-full-arm64-v8a-release.apk",
+              "androidApp-full-armeabi-v7a-release.apk", "androidApp-full-x86-release.apk",
+              "androidApp-full-x86_64-release.apk"
+            ] | sort)
+          ' "$output/output-metadata.json" >/dev/null
+          for abi in universal arm64-v8a armeabi-v7a x86 x86_64; do
+            apk="$output/androidApp-full-${abi}-release.apk"
+            signature="$("$tools/apksigner" verify --print-certs "$apk")"
+            cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$signature")"
+            if [[ -z "$cert" || "$cert" != "$previous_cert" ]]; then
+              echo "::error::Signing certificate mismatch for $abi."
+              exit 1
+            fi
+            badging="$("$tools/aapt" dump badging "$apk")"
+            package="$(grep '^package:' <<< "$badging")"
+            if [[ "$package" != "package: name='com.laqta.app' versionCode='$VERSION_CODE' versionName='$VERSION' "* ]]; then
+              echo "::error::Unexpected package or version for $abi."
+              exit 1
+            fi
+            if [[ "$abi" == universal ]]; then
+              expected="native-code: 'arm64-v8a' 'armeabi-v7a' 'x86' 'x86_64'"
+            else
+              expected="native-code: '$abi'"
+            fi
+            if ! grep -Fxq "$expected" <<< "$badging"; then
+              echo "::error::Unexpected native ABI for $abi."
+              exit 1
+            fi
+          done
+
+      - name: Publish stable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: Laqta ${{ steps.version.outputs.version }}
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            androidApp/build/outputs/apk/full/release/androidApp-full-universal-release.apk
+            androidApp/build/outputs/apk/full/release/androidApp-full-arm64-v8a-release.apk
+            androidApp/build/outputs/apk/full/release/androidApp-full-armeabi-v7a-release.apk
+            androidApp/build/outputs/apk/full/release/androidApp-full-x86-release.apk
+            androidApp/build/outputs/apk/full/release/androidApp-full-x86_64-release.apk
+            androidApp/build/outputs/apk/full/release/output-metadata.json
+
+      - name: Remove temporary signing files
+        if: always()
+        run: rm -f local.properties "$RUNNER_TEMP/laqta-release.p12"

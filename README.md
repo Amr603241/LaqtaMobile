@@ -37,6 +37,12 @@ LAQTA_GOOGLE_OAUTH_ENABLED=true
 
 Without the URL and publishable key, account sign-in remains unavailable; local-only use is still available. The Google button is shown only when `LAQTA_GOOGLE_OAUTH_ENABLED=true`.
 
+### Android releases
+
+The Laqta Android Release workflow publishes a stable release when a `v`-prefixed tag matches `MARKETING_VERSION` in `iosApp/Configuration/Version.xcconfig`. Increment `CURRENT_PROJECT_VERSION` above the latest stable APK's version code before tagging. A manual run requires an existing matching tag. Both paths publish publicly; Stable and Beta update channels can receive the release.
+
+Configure repository secrets `NUVIO_RELEASE_KEYSTORE_BASE64` (the PKCS#12 keystore), `NUVIO_RELEASE_STORE_PASSWORD`, `NUVIO_RELEASE_KEY_ALIAS` (`laqta`), `NUVIO_RELEASE_KEY_PASSWORD`, and `NUVIO_LOCAL_PROPERTIES_BASE64` (runtime properties, including the Laqta Supabase URL and publishable key). Never commit these values. The workflow verifies all five APKs against the latest stable release's package and signing certificate before uploading them and `output-metadata.json`.
+
 ### Supabase setup
 
 1. Create a Supabase project in an account you control.
