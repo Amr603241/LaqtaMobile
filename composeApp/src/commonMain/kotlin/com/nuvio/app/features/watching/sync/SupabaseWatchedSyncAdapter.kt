@@ -2,6 +2,7 @@ package com.nuvio.app.features.watching.sync
 
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
+import com.nuvio.app.core.sync.retryProfileSyncOperation
 import com.nuvio.app.features.watched.WatchedItem
 import com.nuvio.app.features.watched.normalizeWatchedMarkedAtEpochMs
 import io.github.jan.supabase.postgrest.postgrest
@@ -105,7 +106,9 @@ object SupabaseWatchedSyncAdapter : WatchedSyncAdapter {
             put("p_items", json.encodeToJsonElement(syncItems))
             putSyncOriginClientId()
         }
-        SupabaseProvider.client.postgrest.rpc("sync_push_watched_items", params)
+        retryProfileSyncOperation {
+            SupabaseProvider.client.postgrest.rpc("sync_push_watched_items", params)
+        }
     }
 
     override suspend fun delete(
@@ -115,6 +118,7 @@ object SupabaseWatchedSyncAdapter : WatchedSyncAdapter {
         val keys = items.map { item ->
             WatchedDeleteKey(
                 contentId = item.id,
+                contentType = item.type,
                 season = item.season,
                 episode = item.episode,
             )
@@ -124,7 +128,9 @@ object SupabaseWatchedSyncAdapter : WatchedSyncAdapter {
             put("p_keys", json.encodeToJsonElement(keys))
             putSyncOriginClientId()
         }
-        SupabaseProvider.client.postgrest.rpc("sync_delete_watched_items", params)
+        retryProfileSyncOperation {
+            SupabaseProvider.client.postgrest.rpc("sync_delete_watched_items", params)
+        }
     }
 }
 
@@ -153,6 +159,7 @@ private data class WatchedDeltaSyncItem(
 @Serializable
 private data class WatchedDeleteKey(
     @SerialName("content_id") val contentId: String,
+    @SerialName("content_type") val contentType: String,
     val season: Int? = null,
     val episode: Int? = null,
 )

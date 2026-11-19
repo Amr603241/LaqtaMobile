@@ -2,6 +2,7 @@ package com.nuvio.app.features.watching.sync
 
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
+import com.nuvio.app.core.sync.retryProfileSyncOperation
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
 import com.nuvio.app.features.watchprogress.resolvedProgressKey
 import io.github.jan.supabase.postgrest.postgrest
@@ -109,7 +110,9 @@ object SupabaseProgressSyncAdapter : ProgressSyncAdapter {
             put("p_entries", json.encodeToJsonElement(syncEntries))
             putSyncOriginClientId()
         }
-        SupabaseProvider.client.postgrest.rpc("sync_push_watch_progress", params)
+        retryProfileSyncOperation {
+            SupabaseProvider.client.postgrest.rpc("sync_push_watch_progress", params)
+        }
     }
 
     override suspend fun delete(
@@ -122,7 +125,9 @@ object SupabaseProgressSyncAdapter : ProgressSyncAdapter {
             put("p_keys", json.encodeToJsonElement(progressKeys))
             putSyncOriginClientId()
         }
-        SupabaseProvider.client.postgrest.rpc("sync_delete_watch_progress", params)
+        retryProfileSyncOperation {
+            SupabaseProvider.client.postgrest.rpc("sync_delete_watch_progress", params)
+        }
     }
 
 }

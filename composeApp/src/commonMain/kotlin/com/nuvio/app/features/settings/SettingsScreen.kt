@@ -88,7 +88,6 @@ import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesUiState
 import com.nuvio.app.navigation.LocalUseNativeNavigation
-import com.nuvio.app.features.party.PartyRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.isIos
 import nuvio.composeapp.generated.resources.Res
@@ -104,15 +103,8 @@ private val SettingsSearchRevealThreshold = 28.dp
 private const val SettingsSearchRevealAnimationMillis = 240L
 private const val SettingsSearchRevealHapticDelayMillis = 90L
 
-@Composable
-private fun watchPartyRow(onClick: () -> Unit): (() -> Unit)? {
-    val available by PartyRepository.available.collectAsStateWithLifecycle()
-    return onClick.takeIf { available }
-}
-
 private fun SettingsPage.isEnabledByPolicy(): Boolean =
     when (this) {
-        SettingsPage.SupportersContributors -> AppFeaturePolicy.supportersContributorsPageEnabled
         SettingsPage.PlaybackP2p -> P2pSettingsRepository.isVisible
         SettingsPage.PlaybackBuffer -> !isIos
         else -> true
@@ -557,11 +549,7 @@ private fun MobileSettingsScreen(
             when (target) {
                 is SettingsSearchTarget.Page -> when (target.page) {
                     SettingsPage.Account -> onAccountClick()
-                    SettingsPage.SupportersContributors -> {
-                        if (AppFeaturePolicy.supportersContributorsPageEnabled) {
-                            onSupportersContributorsClick()
-                        }
-                    }
+                    SettingsPage.SupportersContributors -> onSupportersContributorsClick()
                     SettingsPage.LicensesAttributions -> onLicensesAttributionsClick()
                     SettingsPage.ContinueWatching -> onContinueWatchingClick()
                     SettingsPage.Addons -> onAddonsClick()
@@ -593,7 +581,6 @@ private fun MobileSettingsScreen(
             }
         }
 
-        val watchPartyRowClick = watchPartyRow(onWatchPartyClick)
         NuvioScreen(
             modifier = Modifier.nestedScroll(rootSearchRevealConnection),
             listState = listState,
@@ -618,7 +605,7 @@ private fun MobileSettingsScreen(
                             settingsSearchEntries(
                                 isTablet = false,
                                 pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
-                                supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
+                                supportersContributorsPageEnabled = true,
                                 accountDeletionEnabled = AppFeaturePolicy.accountDeletionEnabled,
                                 personalMediaAddonCopyEnabled = AppFeaturePolicy.personalMediaAddonCopyEnabled,
                                 liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
@@ -637,7 +624,7 @@ private fun MobileSettingsScreen(
                             isTablet = false,
                             onPageClick = { openSearchTarget(SettingsSearchTarget.Page(it)) },
                             onSwitchProfileClick = onSwitchProfile,
-                            onWatchPartyClick = watchPartyRowClick,
+                            onWatchPartyClick = onWatchPartyClick,
                         )
                     }
                 }
@@ -645,9 +632,7 @@ private fun MobileSettingsScreen(
                     isTablet = false,
                 )
                 SettingsPage.SupportersContributors -> {
-                    if (AppFeaturePolicy.supportersContributorsPageEnabled) {
-                        supportersContributorsContent(isTablet = false)
-                    }
+                    aboutLaqtaContent(isTablet = false)
                 }
                 SettingsPage.LicensesAttributions -> licensesAttributionsContent(
                     isTablet = false,
@@ -698,7 +683,7 @@ private fun MobileSettingsScreen(
                     onLicensesAttributionsClick = onLicensesAttributionsClick,
                     onCheckForUpdatesClick = onCheckForUpdatesClick,
                     onTestUpdateBannerClick = onTestUpdateBannerClick,
-                    showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
+                    showSupportersContributorsPage = true,
                 )
                 SettingsPage.Advanced -> advancedSettingsContent(
                     isTablet = false,
@@ -979,7 +964,6 @@ private fun TabletSettingsScreen(
                     listState.animateScrollToItem(0)
                 }
             }
-            val watchPartyRowClick = watchPartyRow(onWatchPartyClick)
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -1019,7 +1003,7 @@ private fun TabletSettingsScreen(
                                 settingsSearchEntries(
                                     isTablet = true,
                                     pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
-                                    supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
+                                    supportersContributorsPageEnabled = true,
                                     accountDeletionEnabled = AppFeaturePolicy.accountDeletionEnabled,
                                     personalMediaAddonCopyEnabled = AppFeaturePolicy.personalMediaAddonCopyEnabled,
                                     liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
@@ -1038,7 +1022,7 @@ private fun TabletSettingsScreen(
                                 isTablet = true,
                                 onPageClick = ::openInlinePage,
                                 onSwitchProfileClick = onSwitchProfile,
-                                onWatchPartyClick = watchPartyRowClick,
+                                onWatchPartyClick = onWatchPartyClick,
                                 category = activeCategory,
                             )
                         }
@@ -1047,9 +1031,7 @@ private fun TabletSettingsScreen(
                         isTablet = true,
                     )
                     SettingsPage.SupportersContributors -> {
-                        if (AppFeaturePolicy.supportersContributorsPageEnabled) {
-                            supportersContributorsContent(isTablet = true)
-                        }
+                        aboutLaqtaContent(isTablet = true)
                     }
                     SettingsPage.LicensesAttributions -> licensesAttributionsContent(
                         isTablet = true,
@@ -1100,7 +1082,7 @@ private fun TabletSettingsScreen(
                         onLicensesAttributionsClick = { openInlinePage(SettingsPage.LicensesAttributions) },
                         onCheckForUpdatesClick = onCheckForUpdatesClick,
                         onTestUpdateBannerClick = onTestUpdateBannerClick,
-                        showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
+                        showSupportersContributorsPage = true,
                     )
                     SettingsPage.Advanced -> advancedSettingsContent(
                         isTablet = true,

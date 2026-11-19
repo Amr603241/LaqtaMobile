@@ -94,6 +94,7 @@ internal fun LazyListScope.continueWatchingSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_continue_watching_section_visibility),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(
@@ -110,6 +111,7 @@ internal fun LazyListScope.continueWatchingSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_continue_watching_section_card_style),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             ContinueWatchingStyleSelector(
                 isTablet = isTablet,
@@ -123,6 +125,7 @@ internal fun LazyListScope.continueWatchingSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_continue_watching_section_up_next_behavior),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 if (style != ContinueWatchingSectionStyle.Poster) {
@@ -185,6 +188,7 @@ internal fun LazyListScope.continueWatchingSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_continue_watching_section_on_launch),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(
@@ -202,6 +206,7 @@ internal fun LazyListScope.continueWatchingSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_continue_watching_section_sort_order),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 val currentModeLabel = stringResource(

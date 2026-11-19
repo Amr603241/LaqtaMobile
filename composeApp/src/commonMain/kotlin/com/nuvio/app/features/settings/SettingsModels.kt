@@ -72,7 +72,7 @@ internal enum class SettingsPage(
         parentPage = Root,
     ),
     SupportersContributors(
-        titleRes = Res.string.compose_settings_page_supporters_contributors,
+        titleRes = Res.string.about_laqta_title,
         category = SettingsCategory.System,
         parentPage = About,
     ),
@@ -244,7 +244,7 @@ internal val SettingsPage.icon: ImageVector
     get() = when (this) {
         SettingsPage.Root -> Icons.Rounded.Settings
         SettingsPage.Account -> Icons.Default.Person
-        SettingsPage.SupportersContributors -> Icons.Default.Favorite
+        SettingsPage.SupportersContributors -> Icons.Default.Info
         SettingsPage.LicensesAttributions -> Icons.Default.Info
         SettingsPage.Playback -> Icons.Rounded.PlayArrow
         SettingsPage.Appearance -> Icons.Default.Palette

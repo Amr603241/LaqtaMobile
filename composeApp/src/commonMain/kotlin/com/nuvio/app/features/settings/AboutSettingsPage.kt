@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
@@ -15,10 +16,10 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.build.AppVersionConfig
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.about_licenses_attributions_subtitle
-import nuvio.composeapp.generated.resources.about_supporters_contributors_subtitle
+import nuvio.composeapp.generated.resources.about_laqta_subtitle
+import nuvio.composeapp.generated.resources.about_laqta_title
 import nuvio.composeapp.generated.resources.compose_about_version_format
 import nuvio.composeapp.generated.resources.compose_settings_page_licenses_attributions
-import nuvio.composeapp.generated.resources.compose_settings_page_supporters_contributors
 import nuvio.composeapp.generated.resources.compose_settings_root_about_section
 import nuvio.composeapp.generated.resources.compose_settings_root_check_updates_description
 import nuvio.composeapp.generated.resources.compose_settings_root_check_updates_title
@@ -42,9 +43,9 @@ internal fun LazyListScope.aboutSettingsContent(
             SettingsGroup(isTablet = isTablet) {
                 if (showSupportersContributorsPage) {
                     SettingsNavigationRow(
-                        title = stringResource(Res.string.compose_settings_page_supporters_contributors),
-                        description = stringResource(Res.string.about_supporters_contributors_subtitle),
-                        icon = SettingsPage.SupportersContributors.icon,
+                        title = stringResource(Res.string.about_laqta_title),
+                        description = stringResource(Res.string.about_laqta_subtitle),
+                        icon = Icons.Default.Info,
                         isTablet = isTablet,
                         onClick = onSupportersContributorsClick,
                     )

@@ -10,10 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.nuvio.app.core.ui.NuvioTheme
@@ -72,6 +74,27 @@ class SettingsPagesTest {
         assertEquals(SettingsPage.Playback, opened)
         compose.onNodeWithText("Tracking").performScrollTo().performClick()
         assertEquals(SettingsPage.TraktAuthentication, opened)
+    }
+
+    @Test
+    fun homescreenHeroSettingsShowTheirActualStorageScopes() {
+        compose.setContent {
+            NuvioTheme {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    homescreenSettingsContent(
+                        isTablet = false,
+                        heroEnabled = true,
+                        showCatalogType = true,
+                        hideUnreleasedContent = false,
+                        items = emptyList(),
+                        isCatalogLoading = false,
+                        catalogErrorMessage = null,
+                    )
+                }
+            }
+        }
+        compose.onAllNodesWithText("This device").assertCountEquals(1)
+        compose.onAllNodesWithText("Account sync").assertCountEquals(2)
     }
 
     @Test

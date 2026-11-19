@@ -39,7 +39,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -80,6 +79,8 @@ object PartyRepository {
     private var sessionScope: CoroutineScope? = null
     private var sessionJob: Job? = null
     private var persistJob: Job? = null
+    private var snapshotRefreshJob: Job? = null
+    private var snapshotRefreshPending = false
     private var presenceJob: Job? = null
     private var localPresence: PartyPresence? = null
     private var waitStartedAt: TimeMark? = null
@@ -265,6 +266,8 @@ object PartyRepository {
         sessionJob = job
         sessionScope = session
         channel = partyChannel
+        snapshotRefreshJob = null
+        snapshotRefreshPending = false
         localPresence = null
         ignoredWaiting.clear()
         waitStartedAt = null
@@ -293,6 +296,9 @@ object PartyRepository {
         sessionScope = null
         persistJob?.cancel()
         persistJob = null
+        snapshotRefreshJob?.cancel()
+        snapshotRefreshJob = null
+        snapshotRefreshPending = false
         presenceJob = null
         channel?.close()
         channel = null
@@ -333,7 +339,7 @@ object PartyRepository {
     private suspend fun onMessage(event: String, payload: JsonObject) {
         val party = _state.value.party ?: return
         when (event) {
-            "state" -> decode(payload, PartyPlayback.serializer())?.let(::accept)
+            "state", "media", "control" -> requestAuthoritativeSnapshot(party)
             "state_request" -> {
                 if (payload.string("member_id") == party.memberId) return
                 runCatching { channel?.send("status", encodePresence(ownPresence(party))) }
@@ -342,12 +348,6 @@ object PartyRepository {
                 runCatching { channel?.send("state", encodePlayback(current)) }
             }
             "status" -> decode(payload, PartyPresence.serializer())?.let(::applyStatus)
-            "control" -> {
-                val hostOnly = (payload["host_only"] as? JsonPrimitive)?.booleanOrNull ?: return
-                if (party.hostOnly == hostOnly) return
-                updateParty { it.copy(hostOnly = hostOnly) }
-                if (!party.isHost) _events.tryEmit(PartyEvent.ControlChanged(hostOnly))
-            }
             "member_joined" -> refreshMembers(announceMemberId = payload.string("member_id"))
             "member_left" -> onMemberLeft(
                 memberId = payload.string("member_id"),
@@ -358,11 +358,6 @@ object PartyRepository {
                 if (payload.string("reason") == "disabled") _enabled.value = false
                 finish(PartyEvent.Ended)
             }
-            "media" -> {
-                val media = payload["media"]?.let { decode(it, PartyMedia.serializer()) } ?: return
-                val playback = payload["playback"]?.takeIf { it !is JsonNull }?.let { decode(it, PartyPlayback.serializer()) }
-                applyMedia(media, playback)
-            }
             "stream" -> {
                 if (party.isHost || payload.string("member_id") != party.hostMemberId) return
                 _sharedStream.value = payload["stream"]
@@ -371,6 +366,19 @@ object PartyRepository {
                     ?.takeIf { isShareableStreamUrl(it.url) }
             }
             "chat" -> PartyChat.receive(payload)
+        }
+    }
+
+    private fun requestAuthoritativeSnapshot(party: ActiveParty) {
+        snapshotRefreshPending = true
+        if (snapshotRefreshJob?.isActive == true) return
+        snapshotRefreshJob = sessionScope?.launch {
+            while (snapshotRefreshPending && _state.value.party?.id == party.id) {
+                snapshotRefreshPending = false
+                val snapshot = runRemote { PartyApi.heartbeat(party.id, deviceId()) } ?: return@launch
+                if (_state.value.party?.id != party.id) return@launch
+                applySnapshot(snapshot)
+            }
         }
     }
 
@@ -447,6 +455,8 @@ object PartyRepository {
             else -> return
         }
         val info = snapshot.party ?: return
+        val currentParty = _state.value.party ?: return
+        val hostOnlyChanged = currentParty.hostOnly != info.hostOnly
         updateParty { current ->
             current.copy(
                 members = snapshot.members,
@@ -455,6 +465,9 @@ object PartyRepository {
                 hostOnly = info.hostOnly,
                 presence = current.presence.filterKeys { key -> snapshot.members.any { it.id == key } },
             )
+        }
+        if (hostOnlyChanged && !currentParty.isHost) {
+            _events.tryEmit(PartyEvent.ControlChanged(info.hostOnly))
         }
         if (info.media.key != _state.value.party?.media?.key) applyMedia(info.media, info.playback)
         info.playback?.let(::accept)

@@ -3,6 +3,7 @@ package com.nuvio.app.core.sync
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
+import kotlinx.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -194,6 +195,39 @@ class SyncManagerTest {
 
         assertFalse(result.succeeded)
         assertEquals(setOf(ProfileSyncStep.ActiveWatchSource), result.failedSteps)
+    }
+
+    @Test
+    fun `transient sync failure retries with bounded backoff`() = runBlocking {
+        var attempts = 0
+        val delays = mutableListOf<Long>()
+
+        val result = retryProfileSyncOperation(
+            maxRetries = 2,
+            pause = { delays += it },
+        ) {
+            attempts++
+            if (attempts < 3) throw IOException("temporary network failure")
+            "synced"
+        }
+
+        assertEquals("synced", result)
+        assertEquals(3, attempts)
+        assertEquals(listOf(250L, 500L), delays)
+    }
+
+    @Test
+    fun `non-transient sync failure is not retried`() = runBlocking {
+        var attempts = 0
+
+        kotlin.test.assertFailsWith<IllegalStateException> {
+            retryProfileSyncOperation {
+                attempts++
+                error("invalid sync state")
+            }
+        }
+
+        assertEquals(1, attempts)
     }
 
     @Test

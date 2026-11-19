@@ -42,6 +42,7 @@ internal fun PlaybackUpNextSettings(
         SettingsSection(
             title = stringResource(Res.string.settings_playback_section_next_episode),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(

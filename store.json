@@ -1,21 +1,21 @@
 {
-  "name": "Nuvio",
-  "subtitle": "A free, open-source media app for your phone, your desktop, and the TV you already own.",
-  "description": "A free, open-source media app for your phone, your desktop, and the TV you already own.\n\nBring your own sources. Nuvio turns them into a library with artwork, ratings, subtitles, and your place saved on every screen.",
-  "website": "https://nuvio.tv",
-  "iconURL": "https://raw.githubusercontent.com/NuvioMedia/NuvioMobile/0.4.11/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png",
+  "name": "Laqta",
+  "subtitle": "An open-source media library for your phone and TV.",
+  "description": "Laqta is an open-source media app for your phone and TV. Bring your own sources and keep your library, artwork, subtitles, and watch progress together.",
+  "website": "https://github.com/Amr603241/LaqtaMobile",
+  "iconURL": "https://raw.githubusercontent.com/Amr603241/LaqtaMobile/main/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png",
   "tintColor": "#1E88E5",
   "featuredApps": [
     "com.nuvio.media"
   ],
   "apps": [
     {
-      "name": "Nuvio",
+      "name": "Laqta",
       "bundleIdentifier": "com.nuvio.media",
-      "developerName": "NuvioMedia",
-      "subtitle": "A free, open-source media app for your phone, your desktop, and the TV you already own.",
-      "localizedDescription": "A free, open-source media app for your phone, your desktop, and the TV you already own.\n\nBring your own sources. Nuvio turns them into a library with artwork, ratings, subtitles, and your place saved on every screen.",
-      "iconURL": "https://raw.githubusercontent.com/NuvioMedia/NuvioMobile/0.4.11/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png",
+      "developerName": "Laqta",
+      "subtitle": "An open-source media library for your phone and TV.",
+      "localizedDescription": "Laqta is an open-source media app for your phone and TV. Bring your own sources and keep your library, artwork, subtitles, and watch progress together.",
+      "iconURL": "https://raw.githubusercontent.com/Amr603241/LaqtaMobile/main/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png",
       "tintColor": "#1E88E5",
       "category": "entertainment",
       "versions": [

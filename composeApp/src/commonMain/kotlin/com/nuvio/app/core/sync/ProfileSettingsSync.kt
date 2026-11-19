@@ -37,6 +37,7 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesStorage
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
+import kotlinx.coroutines.CancellationException
 import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -155,9 +156,11 @@ object ProfileSettingsSync {
 
                 log.i { "pull(profileId=$profileId) — applied remote settings blob" }
                 true
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Exception) {
                 log.e(error) { "pull(profileId=$profileId) — FAILED" }
-                false
+                throw error
             } finally {
                 isServerSyncInFlight = false
             }
@@ -167,15 +170,18 @@ object ProfileSettingsSync {
     suspend fun pushCurrentProfileToRemote(): Boolean {
         ensureRepositoriesLoaded()
         return syncMutex.withLock {
-            runCatching {
+            try {
                 val profileId = ProfileRepository.activeProfileId
                 val blob = exportSettingsBlob()
-                if (ProfileRepository.activeProfileId != profileId) return@runCatching false
-                pushToRemoteLocked(profileId, blob)
+                if (ProfileRepository.activeProfileId != profileId) return@withLock false
+                retryProfileSyncOperation { pushToRemoteLocked(profileId, blob) }
                 true
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 log.e(error) { "pushCurrentProfileToRemote() — FAILED" }
-            }.getOrDefault(false)
+                false
+            }
         }
     }
 

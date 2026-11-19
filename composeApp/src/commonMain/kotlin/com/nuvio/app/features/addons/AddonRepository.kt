@@ -6,6 +6,7 @@ import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
+import com.nuvio.app.core.sync.retryProfileSyncOperation
 import com.nuvio.app.features.profiles.ProfileRepository
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
@@ -60,6 +61,9 @@ internal data class PendingAddonPush(
     val userId: String?,
     val backendUrl: String,
     val addons: List<AddonPushItem>,
+    val changedUrls: List<String> = emptyList(),
+    val deletedUrls: List<String> = emptyList(),
+    val changeSetVersion: Int = 0,
 )
 
 private const val ADDON_PUSH_DEBOUNCE_MS = 500L
@@ -247,7 +251,7 @@ object AddonRepository {
         if (isUsingPrimaryAddonsFromSecondaryProfile()) {
             return AddAddonResult.Error(getString(Res.string.profile_primary_addons_required))
         }
-        log.i { "addAddon() — rawUrl=$rawUrl" }
+        log.i { "addAddon() requested" }
         val manifestUrl = try {
             normalizeManifestUrl(rawUrl)
         } catch (error: IllegalArgumentException) {
@@ -289,13 +293,13 @@ object AddonRepository {
                 ),
             )
         }
-        persistAndPush()
+        persistAndPush(changedUrls = setOf(manifestUrl))
         return AddAddonResult.Success(manifest)
     }
 
     fun removeAddon(manifestUrl: String) {
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
-        log.i { "removeAddon() — $manifestUrl" }
+        log.i { "removeAddon() requested" }
         var changed = false
         _uiState.update { current ->
             val updatedAddons = current.addons.filterNot { it.manifestUrl == manifestUrl }
@@ -303,7 +307,7 @@ object AddonRepository {
             if (changed) current.copy(addons = updatedAddons) else current
         }
         if (!changed) return
-        persistAndPush()
+        persistAndPush(deletedUrls = setOf(manifestUrl))
     }
 
     fun moveAddon(fromIndex: Int, toIndex: Int) {
@@ -326,7 +330,7 @@ object AddonRepository {
             current.copy(addons = reordered)
         }
         if (!changed) return
-        persistAndPush()
+        persistAndPush(changedUrls = _uiState.value.addons.map(ManagedAddon::manifestUrl).toSet())
     }
 
     fun setAddonEnabled(manifestUrl: String, enabled: Boolean) {
@@ -347,7 +351,7 @@ object AddonRepository {
             )
         }
         if (!changed) return
-        persistAndPush()
+        persistAndPush(changedUrls = setOf(manifestUrl))
         if (shouldRefresh) {
             refreshAddon(manifestUrl)
         }
@@ -424,7 +428,10 @@ object AddonRepository {
         schedulePush(pending, debounceMs = 0L)
     }
 
-    private fun persistAndPush() {
+    private fun persistAndPush(
+        changedUrls: Set<String> = emptySet(),
+        deletedUrls: Set<String> = emptySet(),
+    ) {
         if (isUsingPrimaryAddonsFromSecondaryProfile()) {
             persist()
             return
@@ -436,10 +443,13 @@ object AddonRepository {
             userId = authState?.userId,
             backendUrl = server.backendUrl,
             addons = _uiState.value.addons.toPushItems(),
+            changedUrls = changedUrls.toList(),
+            deletedUrls = deletedUrls.toList(),
+            changeSetVersion = 1,
         )
-        savePendingPush(profileId, pending)
+        val saved = savePendingPush(profileId, pending)
         persist()
-        schedulePush(pending)
+        schedulePush(saved)
     }
 
     private fun schedulePush(
@@ -503,13 +513,19 @@ object AddonRepository {
         val params = buildJsonObject {
             put("p_profile_id", profileId)
             put("p_addons", json.encodeToJsonElement(pending.addons))
+            if (pending.changeSetVersion > 0 && !ServerConfigurationRepository.active.value.isCustom) {
+                put("p_changed_urls", json.encodeToJsonElement(pending.changedUrls))
+                put("p_deleted_urls", json.encodeToJsonElement(pending.deletedUrls))
+            }
             putSyncOriginClientId()
         }
         val pushed = serverSyncMutex.withLock {
             if (profileId != currentProfileId || pendingPushForCurrentScope(profileId) != pending) {
                 false
             } else {
-                SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
+                retryProfileSyncOperation {
+                    SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
+                }
                 true
             }
         }
@@ -534,17 +550,19 @@ object AddonRepository {
             ?.let { json.decodeFromString<List<PendingAddonPush>>(it) }
             .orEmpty()
 
-    private fun savePendingPush(profileId: Int, pending: PendingAddonPush) {
-        synchronized(pendingPushStorageLock) {
+    private fun savePendingPush(profileId: Int, pending: PendingAddonPush): PendingAddonPush {
+        val saved = synchronized(pendingPushStorageLock) {
             val updated = replacePendingAddonPush(loadPendingPushes(profileId), pending)
             AddonStorage.savePendingAddonPushes(
                 profileId,
                 updated.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) },
             )
+            updated.last()
         }
         if (profileId == currentProfileId) {
             updateSyncUiState(isSyncing = false, hasFailed = false)
         }
+        return saved
     }
 
     private fun removePendingPush(profileId: Int, pending: PendingAddonPush) {
@@ -622,10 +640,30 @@ object AddonRepository {
 internal fun replacePendingAddonPush(
     pendingPushes: List<PendingAddonPush>,
     replacement: PendingAddonPush,
-): List<PendingAddonPush> =
-    pendingPushes.filterNot {
+): List<PendingAddonPush> {
+    val existing = pendingPushes.firstOrNull {
         it.userId == replacement.userId && it.backendUrl == replacement.backendUrl
-    } + replacement
+    }
+    if (existing?.changeSetVersion == 0) {
+        return pendingPushes.filterNot {
+            it.userId == replacement.userId && it.backendUrl == replacement.backendUrl
+        } + replacement.copy(
+            changedUrls = emptyList(),
+            deletedUrls = emptyList(),
+            changeSetVersion = 0,
+        )
+    }
+    val changedUrls = (existing?.changedUrls.orEmpty() + replacement.changedUrls)
+        .distinct()
+        .filterNot(replacement.deletedUrls.toSet()::contains)
+    val deletedUrls = (existing?.deletedUrls.orEmpty() + replacement.deletedUrls)
+        .distinct()
+        .filterNot(replacement.changedUrls.toSet()::contains)
+    val merged = replacement.copy(changedUrls = changedUrls, deletedUrls = deletedUrls)
+    return pendingPushes.filterNot {
+        it.userId == replacement.userId && it.backendUrl == replacement.backendUrl
+    } + merged
+}
 
 internal fun removePendingAddonPush(
     pendingPushes: List<PendingAddonPush>,
@@ -634,7 +672,7 @@ internal fun removePendingAddonPush(
     pendingPushes.filterNot {
         it.userId == completed.userId &&
             it.backendUrl == completed.backendUrl &&
-            it.addons == completed.addons
+            it == completed
     }
 
 private fun List<ManagedAddon>.toPushItems(): List<AddonPushItem> =

@@ -45,6 +45,7 @@ internal fun UpdateChannelSettingsRow(isTablet: Boolean) {
         description = stringResource(Res.string.updates_channel_description),
         icon = Icons.Rounded.SystemUpdate,
         isTablet = isTablet,
+        storageScope = SettingsStorageScope.Local,
         trailingContent = {
             Text(
                 text = updateChannelLabel(channel),

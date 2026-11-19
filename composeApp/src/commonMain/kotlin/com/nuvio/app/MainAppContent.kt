@@ -155,7 +155,7 @@ import com.nuvio.app.features.settings.HomescreenSettingsScreen
 import com.nuvio.app.features.settings.LicensesAttributionsSettingsScreen
 import com.nuvio.app.features.settings.MetaScreenSettingsScreen
 import com.nuvio.app.features.settings.PluginsSettingsScreen
-import com.nuvio.app.features.settings.SupportersContributorsSettingsScreen
+import com.nuvio.app.features.settings.AboutLaqtaSettingsScreen
 import com.nuvio.app.features.settings.ThemeSettingsRepository
 import com.nuvio.app.features.streams.BingeGroupCacheRepository
 import com.nuvio.app.features.streams.StreamAutoPlayPolicy
@@ -367,7 +367,7 @@ internal fun MainAppContent(
     val addonsSettingsTitle = stringResource(Res.string.compose_settings_page_addons)
     val pluginsSettingsTitle = stringResource(Res.string.compose_settings_page_plugins)
     val accountSettingsTitle = stringResource(Res.string.compose_settings_page_account)
-    val supportersSettingsTitle = stringResource(Res.string.compose_settings_page_supporters_contributors)
+    val supportersSettingsTitle = stringResource(Res.string.about_laqta_title)
     val licensesSettingsTitle = stringResource(Res.string.compose_settings_page_licenses_attributions)
     val collectionsTitle = stringResource(Res.string.collections_header)
     val newCollectionTitle = stringResource(Res.string.collections_new)
@@ -1475,9 +1475,7 @@ internal fun MainAppContent(
                                 },
                                 onAccountSettingsClick = { navController.navigate(AccountSettingsRoute(accountSettingsTitle)) },
                                 onSupportersContributorsSettingsClick = {
-                                    if (AppFeaturePolicy.supportersContributorsPageEnabled) {
-                                        navController.navigate(SupportersContributorsSettingsRoute(supportersSettingsTitle))
-                                    }
+                                    navController.navigate(SupportersContributorsSettingsRoute(supportersSettingsTitle))
                                 },
                                 onLicensesAttributionsSettingsClick = {
                                     navController.navigate(LicensesAttributionsSettingsRoute(licensesSettingsTitle))
@@ -1692,11 +1690,7 @@ internal fun MainAppContent(
                 }
                 entry<SupportersContributorsSettingsRoute> { route ->
                     SettingsDestination(route, navController) { onBack ->
-                        if (AppFeaturePolicy.supportersContributorsPageEnabled) {
-                            SupportersContributorsSettingsScreen(onBack = onBack)
-                        } else {
-                            LaunchedEffect(Unit) { onBack() }
-                        }
+                        AboutLaqtaSettingsScreen(onBack = onBack)
                     }
                 }
                 entry<LicensesAttributionsSettingsRoute> { route ->

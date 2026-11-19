@@ -738,6 +738,14 @@ private fun AddAddonCard(
                 },
             ),
         )
+        if (!usePersonalMediaCopy) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.addons_stremio_manifest_help),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Spacer(modifier = Modifier.height(18.dp))
         NuvioPrimaryButton(
             text = stringResource(

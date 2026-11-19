@@ -39,6 +39,7 @@ internal fun LazyListScope.notificationsSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_notifications_section_alerts),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(

@@ -8,6 +8,7 @@ import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.poster.CustomPosterUrlRepository
 import com.nuvio.app.core.sync.ProfileSettingsSync
 import com.nuvio.app.core.sync.putSyncOriginClientId
+import com.nuvio.app.core.sync.retryProfileSyncOperation
 import com.nuvio.app.core.tracking.ensureTrackingProvidersRegistered
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.collection.CollectionMobileSettingsRepository
@@ -39,6 +40,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -129,7 +131,9 @@ object ProfileRepository {
             return
         }
         try {
-            val result = SupabaseProvider.client.postgrest.rpc("sync_pull_profiles")
+            val result = retryProfileSyncOperation {
+                SupabaseProvider.client.postgrest.rpc("sync_pull_profiles")
+            }
             val profiles = result.decodeList<NuvioProfile>()
             _state.value = _state.value.copy(
                 profiles = profiles.sortedBy { it.profileIndex },
@@ -141,6 +145,8 @@ object ProfileRepository {
                 activeProfileIndex = _state.value.activeProfile!!.profileIndex
             }
             persist()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             if (AuthRepository.signOutIfSessionInvalid(e, "Profile pull")) return
             log.e(e) { "Failed to pull profiles" }
@@ -205,8 +211,12 @@ object ProfileRepository {
                 put("p_profiles", json.encodeToJsonElement(profiles))
                 putSyncOriginClientId()
             }
-            SupabaseProvider.client.postgrest.rpc("sync_push_profiles", params)
+            retryProfileSyncOperation {
+                SupabaseProvider.client.postgrest.rpc("sync_push_profiles", params)
+            }
             pullProfiles()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             if (AuthRepository.signOutIfSessionInvalid(e, "Profile push")) return
             log.e(e) { "Failed to push profiles" }

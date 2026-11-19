@@ -60,6 +60,7 @@ internal fun LazyListScope.advancedSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_advanced_section_startup),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Local,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(
@@ -84,6 +85,7 @@ internal fun LazyListScope.advancedSettingsContent(
             SettingsSection(
                 title = stringResource(Res.string.settings_advanced_section_diagnostics),
                 isTablet = isTablet,
+                storageScope = SettingsStorageScope.Local,
             ) {
                 SettingsGroup(isTablet = isTablet) {
                     SettingsSwitchRow(
@@ -113,6 +115,7 @@ internal fun LazyListScope.advancedSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_advanced_section_cache),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Local,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 val scope = rememberCoroutineScope()

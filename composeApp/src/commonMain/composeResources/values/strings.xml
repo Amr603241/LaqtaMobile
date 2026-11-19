@@ -19,6 +19,10 @@
     <string name="profile_background_custom">Custom</string>
     <string name="about_licenses_attributions_subtitle">Data sources, acknowledgements, and platform licenses</string>
     <string name="about_supporters_contributors_subtitle">Open recognition and project credits</string>
+    <string name="about_laqta_title">About Laqta</string>
+    <string name="about_laqta_subtitle">Project details and source repository</string>
+    <string name="about_laqta_body">Laqta is a community-maintained, open-source media app. Source code and required license notices are available in the project repository.</string>
+    <string name="about_laqta_repository">Project source on GitHub</string>
     <string name="action_back">Back</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_close">Close</string>
@@ -67,6 +71,9 @@
     <string name="addons_empty_title">No addons installed yet.</string>
     <string name="addons_error_enter_url">Enter an addon URL.</string>
     <string name="addons_input_placeholder">Addon URL</string>
+    <string name="addons_stremio_manifest_help">Paste a Stremio manifest URL or stremio:// link. Installed add-ons sync with your Laqta account; this does not link a Stremio account.</string>
+    <string name="settings_scope_cloud">Account sync</string>
+    <string name="settings_scope_local">This device</string>
     <string name="addons_install_button">Install Addon</string>
     <string name="addons_tracking_consent_title">Tracking addon</string>
     <string name="addons_tracking_consent_body">%1$s is a tracking addon. Laqta will send it your activity: what you play, pause and stop with the playback position, what you add to or remove from your library, and what you mark as watched or unwatched. This data leaves Laqta and is handled by the addon's developer and the service it connects to.</string>

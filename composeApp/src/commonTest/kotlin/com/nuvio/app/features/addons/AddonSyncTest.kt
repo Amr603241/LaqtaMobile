@@ -48,6 +48,7 @@ class AddonSyncTest {
             userId = "user-a",
             backendUrl = "https://server-a.test",
             addons = emptyList(),
+            changeSetVersion = 1,
         )
         val otherServer = original.copy(backendUrl = "https://server-b.test")
         val otherAccount = original.copy(userId = "user-b")
@@ -57,6 +58,48 @@ class AddonSyncTest {
             listOf(otherServer, otherAccount, updated),
             replacePendingAddonPush(listOf(original, otherServer, otherAccount), updated),
         )
+    }
+
+    @Test
+    fun `pending addon changes preserve distinct edits and let later changes cancel tombstones`() {
+        val original = PendingAddonPush(
+            userId = "user-a",
+            backendUrl = "https://server-a.test",
+            addons = emptyList(),
+            deletedUrls = listOf("https://example.test/manifest.json"),
+            changeSetVersion = 1,
+        )
+        val updated = original.copy(
+            addons = listOf(AddonPushItem(url = addon.manifestUrl)),
+            changedUrls = listOf(addon.manifestUrl),
+            deletedUrls = emptyList(),
+        )
+
+        assertEquals(
+            listOf(updated),
+            replacePendingAddonPush(listOf(original), updated),
+        )
+    }
+
+    @Test
+    fun `legacy pending snapshot remains a full replacement after a new local edit`() {
+        val legacy = PendingAddonPush(
+            userId = "user-a",
+            backendUrl = "https://server-a.test",
+            addons = emptyList(),
+        )
+        val current = legacy.copy(
+            addons = listOf(AddonPushItem(url = addon.manifestUrl)),
+            changedUrls = listOf(addon.manifestUrl),
+            changeSetVersion = 1,
+        )
+
+        val merged = replacePendingAddonPush(listOf(legacy), current).single()
+
+        assertEquals(0, merged.changeSetVersion)
+        assertEquals(emptyList(), merged.changedUrls)
+        assertEquals(emptyList(), merged.deletedUrls)
+        assertEquals(current.addons, merged.addons)
     }
 
     @Test

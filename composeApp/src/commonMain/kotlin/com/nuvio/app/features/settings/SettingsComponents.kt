@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.Icon
@@ -56,6 +57,7 @@ import com.nuvio.app.core.ui.NuvioSectionLabel
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioConsumePointerEvents
 import com.nuvio.app.features.home.HomeCatalogSettingsItem
+import com.nuvio.app.features.servers.ServerCatalog
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.settings_homescreen_collection_with_addon
 import nuvio.composeapp.generated.resources.settings_homescreen_display_name
@@ -66,8 +68,36 @@ import nuvio.composeapp.generated.resources.settings_homescreen_pinned
 import nuvio.composeapp.generated.resources.settings_homescreen_pinned_to_top
 import nuvio.composeapp.generated.resources.settings_homescreen_reorder
 import nuvio.composeapp.generated.resources.settings_homescreen_visible
+import nuvio.composeapp.generated.resources.settings_scope_cloud
+import nuvio.composeapp.generated.resources.settings_scope_local
 import org.jetbrains.compose.resources.stringResource
 import sh.calvin.reorderable.ReorderableCollectionItemScope
+
+internal enum class SettingsStorageScope {
+    Cloud,
+    Local,
+}
+
+@Composable
+private fun SettingsScopeBadge(scope: SettingsStorageScope) {
+    val tokens = MaterialTheme.nuvio
+    Surface(
+        color = tokens.colors.accent.copy(alpha = tokens.opacity.pressed),
+        shape = RoundedCornerShape(NuvioTokens.Radius.md),
+    ) {
+        Text(
+            text = stringResource(
+                when (scope) {
+                    SettingsStorageScope.Cloud -> Res.string.settings_scope_cloud
+                    SettingsStorageScope.Local -> Res.string.settings_scope_local
+                },
+            ),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = tokens.colors.textSecondary,
+        )
+    }
+}
 
 @Composable
 private fun SettingsCard(
@@ -208,6 +238,7 @@ internal fun SettingsSidebarItem(
 internal fun SettingsSection(
     title: String,
     isTablet: Boolean,
+    storageScope: SettingsStorageScope? = null,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -220,12 +251,16 @@ internal fun SettingsSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NuvioSectionLabel(text = title)
+            Box(modifier = Modifier.weight(1f)) {
+                NuvioSectionLabel(text = title)
+            }
             Row(
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
-                content = actions,
-            )
+            ) {
+                storageScope?.let { SettingsScopeBadge(it) }
+                actions()
+            }
         }
         Spacer(modifier = Modifier.height(if (isTablet) tokens.spacing.listGap else NuvioTokens.Space.s10))
         content()
@@ -240,6 +275,7 @@ internal fun SettingsNavigationRow(
     iconPainter: Painter? = null,
     enabled: Boolean = true,
     isTablet: Boolean,
+    storageScope: SettingsStorageScope? = null,
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -300,6 +336,7 @@ internal fun SettingsNavigationRow(
                     color = tokens.colors.textPrimary,
                     fontWeight = FontWeight.Medium,
                 )
+                storageScope?.let { SettingsScopeBadge(it) }
                 if (!description.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -312,6 +349,12 @@ internal fun SettingsNavigationRow(
             }
         }
         trailingContent?.invoke(this)
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.padding(start = 4.dp),
+            tint = tokens.colors.textSecondary,
+        )
     }
 }
 
@@ -322,6 +365,7 @@ internal fun SettingsSwitchRow(
     checked: Boolean,
     enabled: Boolean = true,
     isTablet: Boolean,
+    storageScope: SettingsStorageScope? = null,
     horizontalPadding: Dp = if (isTablet) 20.dp else 16.dp,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -350,6 +394,7 @@ internal fun SettingsSwitchRow(
                 color = tokens.colors.textPrimary,
                 fontWeight = FontWeight.Medium,
             )
+            storageScope?.let { SettingsScopeBadge(it) }
             if (!description.isNullOrBlank()) {
                 Text(
                     text = description,
@@ -462,6 +507,9 @@ internal fun HomescreenCatalogRow(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                )
+                SettingsScopeBadge(
+                    if (ServerCatalog.isServerKey(item.key)) SettingsStorageScope.Local else SettingsStorageScope.Cloud,
                 )
                 Text(
                     text = if (item.isCollection) {

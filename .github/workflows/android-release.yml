@@ -178,7 +178,7 @@ jobs:
 
       - name: Configure release properties
         run: |
-          keystore_path="${RUNNER_TEMP}/nuvio-release.jks"
+          keystore_path="${RUNNER_TEMP}/laqta-release.p12"
           printf '%s' "${RELEASE_KEYSTORE_BASE64}" | base64 --decode > "${keystore_path}"
           printf '%s' "${RELEASE_PROPERTIES_BASE64}" | base64 --decode > local.properties
 
@@ -187,7 +187,6 @@ jobs:
 
           required_properties=(
             NUVIO_RELEASE_STORE_PASSWORD
-            NUVIO_RELEASE_KEY_ALIAS
             NUVIO_RELEASE_KEY_PASSWORD
             LAQTA_SUPABASE_URL
             LAQTA_SUPABASE_ANON_KEY
@@ -198,6 +197,12 @@ jobs:
               exit 1
             fi
           done
+          store_password="$(sed -n 's/^NUVIO_RELEASE_STORE_PASSWORD=//p' local.properties | head -n1)"
+          if ! keytool -list -keystore "${keystore_path}" -storepass "${store_password}" -alias laqta >/dev/null 2>&1; then
+            echo "The configured PKCS#12 keystore does not contain the required laqta signing alias." >&2
+            exit 1
+          fi
+          unset store_password
           if ! grep -Eq '^TRAKT_CLIENT_ID=.+' local.properties ||
              ! grep -Eq '^TRAKT_CLIENT_SECRET=.+' local.properties; then
             echo "::warning::Trakt is unavailable because its client credentials are not configured."
@@ -209,7 +214,7 @@ jobs:
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: nuvio-${{ needs.prepare.outputs.version }}-android-full-release
+          name: laqta-${{ needs.prepare.outputs.version }}-android-full-release
           path: androidApp/build/outputs/apk/full/release/*.apk
           if-no-files-found: error
 

@@ -87,8 +87,7 @@ internal object AppUpdaterRepository {
         supportedAbis: List<String>,
     ): GitHubAssetDto? {
         val apkAssets = assets.filter { asset ->
-            asset.name.endsWith(".apk", ignoreCase = true) ||
-                asset.contentType == "application/vnd.android.package-archive"
+            asset.name.endsWith(".apk", ignoreCase = true)
         }
         fun matchesAbi(name: String, abi: String): Boolean {
             val suffix = if (abi.equals("x86", ignoreCase = true)) "(?!_64)" else ""
@@ -102,8 +101,7 @@ internal object AppUpdaterRepository {
         val genericAssets = apkAssets.filter { asset ->
             listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86").none { matchesAbi(asset.name, it) }
         }
-        val universalName = Regex("(^|[^a-z0-9])(universal|all)(?=$|[^a-z0-9])", RegexOption.IGNORE_CASE)
+        val universalName = Regex("(^|[^a-z0-9])universal(?=$|[^a-z0-9])", RegexOption.IGNORE_CASE)
         return genericAssets.firstOrNull { universalName.containsMatchIn(it.name) }
-            ?: genericAssets.firstOrNull()
     }
 }

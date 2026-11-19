@@ -36,6 +36,7 @@ internal fun LazyListScope.contentDiscoveryContent(
         SettingsSection(
             title = stringResource(Res.string.settings_content_discovery_section_search),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Local,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(

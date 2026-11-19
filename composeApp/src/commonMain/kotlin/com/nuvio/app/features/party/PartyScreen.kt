@@ -54,6 +54,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtonStyle
 import com.nuvio.app.core.ui.NuvioScreen
@@ -264,6 +266,7 @@ private fun JoinContent(
     val tokens = MaterialTheme.nuvio
     val state by PartyRepository.state.collectAsStateWithLifecycle()
     val available by PartyRepository.available.collectAsStateWithLifecycle()
+    val authState by AuthRepository.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val focusRequester = remember { FocusRequester() }
@@ -278,7 +281,7 @@ private fun JoinContent(
     var previewJob by remember { mutableStateOf<Job?>(null) }
     val blockedError = when {
         !available -> PartyError.Unavailable
-        !PartyRepository.canUse -> PartyError.SignInRequired
+        (authState as? AuthState.Authenticated)?.isAnonymous != false -> PartyError.SignInRequired
         else -> null
     }
     val shownError = blockedError ?: error
@@ -326,12 +329,12 @@ private fun JoinContent(
                     preview = result
                     if (result.isFull) error = PartyError.Full
                 }
-                failure != null && failure != PartyError.Network -> reject(failure)
+                failure != null -> reject(failure)
             }
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(blockedError) {
         if (blockedError != null) return@LaunchedEffect
         if (prefilled) {
             val target = normalizePartyCode(initialCode).take(PARTY_CODE_LENGTH)

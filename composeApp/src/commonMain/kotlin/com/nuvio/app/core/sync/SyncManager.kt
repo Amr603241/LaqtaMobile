@@ -18,8 +18,11 @@ import com.nuvio.app.features.tracking.WatchProgressSource
 import com.nuvio.app.features.tracking.effectiveLibrarySourceMode
 import com.nuvio.app.features.tracking.effectiveWatchProgressSource
 import com.nuvio.app.features.watchprogress.WatchProgressSourceCoordinator
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.ResponseException
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import kotlinx.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -35,6 +38,35 @@ private const val FOREGROUND_PULL_DELAY_MS = 2500L
 private const val FOREGROUND_ACTIVITY_PULL_MIN_INTERVAL_MS = 2 * 60_000L
 private const val FULL_PULL_MIN_INTERVAL_MS = 10_000L
 private const val PERIODIC_NUVIO_SYNC_PULL_INTERVAL_MS = 15 * 60_000L
+private const val PROFILE_SYNC_MAX_RETRIES = 2
+private const val PROFILE_SYNC_INITIAL_RETRY_DELAY_MS = 250L
+
+internal suspend fun <T> retryProfileSyncOperation(
+    maxRetries: Int = PROFILE_SYNC_MAX_RETRIES,
+    pause: suspend (Long) -> Unit = { delay(it) },
+    operation: suspend () -> T,
+): T {
+    var retries = 0
+    while (true) {
+        try {
+            return operation()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (retries >= maxRetries || !error.isTransientProfileSyncFailure()) throw error
+            pause(PROFILE_SYNC_INITIAL_RETRY_DELAY_MS shl retries.coerceAtMost(2))
+            retries++
+        }
+    }
+}
+
+private fun Throwable.isTransientProfileSyncFailure(): Boolean =
+    generateSequence(this) { it.cause }.any { cause ->
+        cause is IOException ||
+            cause is HttpRequestTimeoutException ||
+            (cause is ResponseException &&
+                (cause.response.status.value == 429 || cause.response.status.value in 500..599))
+    }
 
 internal enum class ProfileSyncStep {
     Addons,
@@ -108,7 +140,7 @@ internal suspend fun runOrderedProfileSync(
         operation: suspend (Int) -> Unit,
     ) {
         try {
-            operation(profileId)
+            retryProfileSyncOperation { operation(profileId) }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
@@ -163,7 +195,7 @@ internal suspend fun runActivityProfileSync(
         operation: suspend (Int) -> Unit,
     ) {
         try {
-            operation(profileId)
+            retryProfileSyncOperation { operation(profileId) }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {

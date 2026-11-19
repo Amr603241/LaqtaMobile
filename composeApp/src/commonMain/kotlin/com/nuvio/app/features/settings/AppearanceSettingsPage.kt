@@ -62,6 +62,7 @@ internal fun LazyListScope.appearanceSettingsContent(
         SettingsSection(
             title = stringResource(Res.string.settings_appearance_section_theme),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 AppearanceThemePicker(
@@ -87,6 +88,7 @@ internal fun LazyListScope.appearanceSettingsContent(
                     description = stringResource(Res.string.settings_appearance_amoled_description),
                     checked = amoledEnabled,
                     isTablet = isTablet,
+                    storageScope = SettingsStorageScope.Cloud,
                     onCheckedChange = onAmoledToggle,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
@@ -95,6 +97,7 @@ internal fun LazyListScope.appearanceSettingsContent(
                     description = stringResource(appIconState.selected.labelResource),
                     enabled = appIconState.pending == null,
                     isTablet = isTablet,
+                    storageScope = SettingsStorageScope.Local,
                     trailingContent = {
                         AppIconThumbnail(
                             icon = appIconState.selected,
@@ -112,6 +115,7 @@ internal fun LazyListScope.appearanceSettingsContent(
                     title = stringResource(Res.string.settings_appearance_app_language),
                     description = stringResource(selectedAppLanguage.labelRes),
                     isTablet = isTablet,
+                    storageScope = SettingsStorageScope.Local,
                     onClick = { showLanguageSheet = true },
                 )
             }

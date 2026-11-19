@@ -20,6 +20,10 @@
     <string name="profile_background_custom">مخصصة</string>
     <string name="about_licenses_attributions_subtitle">مصادر البيانات والإقرارات وتراخيص المنصة</string>
     <string name="about_supporters_contributors_subtitle">تقدير مفتوح وشكر للمساهمين في المشروع</string>
+    <string name="about_laqta_title">حول لقطة</string>
+    <string name="about_laqta_subtitle">معلومات التطبيق ومستودع المصدر</string>
+    <string name="about_laqta_body">لقطة تطبيق وسائط مفتوح المصدر يديره المجتمع. يتوفر الكود المصدري وإشعارات التراخيص المطلوبة في مستودع المشروع.</string>
+    <string name="about_laqta_repository">المصدر على GitHub</string>
     <string name="action_back">رجوع</string>
     <string name="action_cancel">إلغاء</string>
     <string name="action_close">إغلاق</string>
@@ -68,6 +72,9 @@
     <string name="addons_empty_title">لا توجد إضافات مثبتة بعد.</string>
     <string name="addons_error_enter_url">أدخل رابط الإضافة.</string>
     <string name="addons_input_placeholder">رابط الإضافة</string>
+    <string name="addons_stremio_manifest_help">الصق رابط Manifest من Stremio أو رابط stremio://. تُزامَن الإضافات المثبتة مع حساب Laqta؛ ولا يربط ذلك حساب Stremio.</string>
+    <string name="settings_scope_cloud">مزامنة الحساب</string>
+    <string name="settings_scope_local">هذا الجهاز</string>
     <string name="addons_install_button">تثبيت الإضافة</string>
     <string name="addons_loading_manifest_details">جارٍ تحميل تفاصيل ملف Manifest...</string>
     <string name="addons_modal_checking_message">جارٍ التحقق من رابط Manifest وتحميل تفاصيل الإضافة قبل التثبيت.</string>
@@ -457,7 +464,7 @@
     <string name="compose_catalog_subtitle_simkl_library">قائمة مشاهدة Simkl</string>
     <string name="compose_nav_home">الرئيسية</string>
     <string name="compose_nav_library">المكتبة</string>
-    <string name="compose_nav_profile">الملف الشخصي</string>
+    <string name="compose_nav_profile">حسابي</string>
     <string name="compose_nav_search">بحث</string>
     <string name="compose_player_audio_tracks">المسارات الصوتية</string>
     <string name="compose_player_audio">الصوت</string>

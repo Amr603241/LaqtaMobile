@@ -3,6 +3,9 @@ package com.nuvio.app.features.updater
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -22,6 +25,7 @@ import org.jetbrains.compose.resources.getString
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipFile
 
 object AndroidAppUpdaterPlatform {
     private const val preferencesName = "nuvio_updater"
@@ -142,7 +146,8 @@ object AndroidAppUpdaterPlatform {
     fun installDownloadedApk(path: String): Result<Unit> = runCatching {
         val context = requireContext()
         val apkFile = File(path)
-        check(apkFile.exists()) { runBlocking { getString(Res.string.updates_downloaded_file_missing) } }
+        check(apkFile.isFile) { runBlocking { getString(Res.string.updates_downloaded_file_missing) } }
+        verifyDownloadedApk(apkFile, context)
 
         val apkUri = FileProvider.getUriForFile(
             context,
@@ -162,4 +167,74 @@ object AndroidAppUpdaterPlatform {
 
     private fun requireContext(): Context =
         requireNotNull(appContext) { "AndroidAppUpdaterPlatform.initialize must be called before use." }
+
+    @Suppress("DEPRECATION")
+    private fun verifyDownloadedApk(apkFile: File, context: Context) {
+        val packageManager = context.packageManager
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            PackageManager.GET_SIGNATURES
+        }
+        val candidate = requireNotNull(packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)) {
+            "The downloaded file is not a valid APK."
+        }
+        val installed = packageManager.getPackageInfo(context.packageName, flags)
+        check(candidate.packageName == context.packageName) {
+            "The downloaded APK belongs to a different application."
+        }
+        val candidateVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            candidate.longVersionCode
+        } else {
+            candidate.versionCode.toLong()
+        }
+        val installedVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            installed.longVersionCode
+        } else {
+            installed.versionCode.toLong()
+        }
+        check(candidateVersion > installedVersion) {
+            "The downloaded APK is not a newer version."
+        }
+        check(
+            haveSameSignerCertificates(
+                installed.signerCertificates(),
+                candidate.signerCertificates(),
+            ),
+        ) {
+            "The downloaded APK signing certificate does not match this installation."
+        }
+
+        val supportedAbiDirectories = Build.SUPPORTED_ABIS.map { "lib/$it/" }
+        val hasCompatibleAbi = ZipFile(apkFile).use { archive ->
+            val entries = archive.entries()
+            var compatible = false
+            while (entries.hasMoreElements() && !compatible) {
+                val entryName = entries.nextElement().name
+                compatible = supportedAbiDirectories.any(entryName::startsWith)
+            }
+            compatible
+        }
+        check(hasCompatibleAbi) {
+            "The downloaded APK does not contain native libraries for this device."
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun PackageInfo.signerCertificates(): List<ByteArray> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            signingInfo?.apkContentsSigners?.map(Signature::toByteArray).orEmpty()
+        } else {
+            signatures?.map(Signature::toByteArray).orEmpty()
+        }
 }
+
+internal fun haveSameSignerCertificates(
+    installed: List<ByteArray>,
+    candidate: List<ByteArray>,
+): Boolean =
+    installed.isNotEmpty() &&
+        installed.size == candidate.size &&
+        installed.all { installedCertificate ->
+            candidate.any { candidateCertificate -> installedCertificate.contentEquals(candidateCertificate) }
+        }

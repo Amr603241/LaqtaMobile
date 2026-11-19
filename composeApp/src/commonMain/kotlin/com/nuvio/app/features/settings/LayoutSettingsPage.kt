@@ -120,6 +120,7 @@ internal fun LazyListScope.layoutSettingsContent(
             SettingsSection(
                 title = stringResource(Res.string.settings_appearance_nav_bar_style),
                 isTablet = isTablet,
+                storageScope = SettingsStorageScope.Cloud,
             ) {
                 SettingsGroup(isTablet = isTablet) {
                     if (liquidGlassNativeTabBarSupported) {

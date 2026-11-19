@@ -27,7 +27,6 @@ val localProps = Properties().apply {
 }
 val releaseStoreFile = localProps.getProperty("NUVIO_RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() }
 val releaseStorePassword = localProps.getProperty("NUVIO_RELEASE_STORE_PASSWORD")?.takeIf { it.isNotBlank() }
-val releaseKeyAlias = localProps.getProperty("NUVIO_RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() }
 val releaseKeyPassword = localProps.getProperty("NUVIO_RELEASE_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
 val releaseKeystore = releaseStoreFile?.let(rootProject::file)
 fun envOrLocalProperty(key: String): String? =
@@ -49,6 +48,17 @@ val requestedTaskNames = gradle.startParameter.taskNames.map { it.substringAfter
 val buildsReleaseApks = requestedTaskNames.any {
     it.startsWith("assemble", ignoreCase = true) && it.endsWith("Release", ignoreCase = true)
 }
+if (buildsReleaseApks) {
+    check(releaseKeystore?.isFile == true) {
+        "A release keystore must be configured with NUVIO_RELEASE_STORE_FILE and exist on disk."
+    }
+    check(releaseKeystore?.extension?.equals("p12", ignoreCase = true) == true) {
+        "The configured Android release keystore must be a PKCS#12 .p12 file."
+    }
+    check(releaseStorePassword != null && releaseKeyPassword != null) {
+        "Release keystore and key passwords must be configured for release APK builds."
+    }
+}
 
 android {
     namespace = "com.nuvio.android"
@@ -57,17 +67,18 @@ android {
 
     signingConfigs {
         create("release") {
-            if (releaseKeystore != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null) {
+            if (releaseKeystore != null && releaseStorePassword != null && releaseKeyPassword != null) {
                 storeFile = releaseKeystore
+                storeType = "PKCS12"
                 storePassword = releaseStorePassword
-                keyAlias = releaseKeyAlias
+                keyAlias = "laqta"
                 keyPassword = releaseKeyPassword
             }
         }
     }
 
     defaultConfig {
-        applicationId = "com.nuvio.app"
+        applicationId = "com.laqta.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = releaseAppVersionCode
@@ -118,7 +129,7 @@ android {
             isEnable = buildsReleaseApks
             reset()
             include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-            isUniversalApk = false
+            isUniversalApk = true
         }
     }
 

@@ -3,6 +3,7 @@ package com.nuvio.app.features.library.sync
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.network.SupabaseProvider
+import com.nuvio.app.core.sync.retryProfileSyncOperation
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.library.LibraryItem
@@ -107,7 +108,9 @@ object SupabaseLibrarySyncAdapter : LibrarySyncAdapter {
                 put("p_items", json.encodeToJsonElement(batch.map(LibraryItem::toSyncItem)))
                 putSyncOriginClientId()
             }
-            SupabaseProvider.client.postgrest.rpc("sync_push_library_items", params)
+            retryProfileSyncOperation {
+                SupabaseProvider.client.postgrest.rpc("sync_push_library_items", params)
+            }
         }
     }
 
@@ -121,7 +124,9 @@ object SupabaseLibrarySyncAdapter : LibrarySyncAdapter {
                 put("p_keys", json.encodeToJsonElement(batch))
                 putSyncOriginClientId()
             }
-            SupabaseProvider.client.postgrest.rpc("sync_delete_library_items", params)
+            retryProfileSyncOperation {
+                SupabaseProvider.client.postgrest.rpc("sync_delete_library_items", params)
+            }
         }
     }
 }

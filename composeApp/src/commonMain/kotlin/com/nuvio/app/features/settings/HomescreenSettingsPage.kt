@@ -100,6 +100,7 @@ internal fun LazyListScope.homescreenSettingsContent(
                     description = stringResource(Res.string.settings_homescreen_show_hero_description),
                     checked = heroEnabled,
                     isTablet = isTablet,
+                    storageScope = SettingsStorageScope.Local,
                     onCheckedChange = HomeCatalogSettingsRepository::setHeroEnabled,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
@@ -108,6 +109,7 @@ internal fun LazyListScope.homescreenSettingsContent(
                     description = stringResource(Res.string.layout_catalog_type_sub),
                     checked = showCatalogType,
                     isTablet = isTablet,
+                    storageScope = SettingsStorageScope.Cloud,
                     onCheckedChange = HomeCatalogSettingsRepository::setShowCatalogType,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
@@ -116,6 +118,7 @@ internal fun LazyListScope.homescreenSettingsContent(
                     description = stringResource(Res.string.layout_hide_unreleased_sub),
                     checked = hideUnreleasedContent,
                     isTablet = isTablet,
+                    storageScope = SettingsStorageScope.Cloud,
                     onCheckedChange = HomeCatalogSettingsRepository::setHideUnreleasedContent,
                 )
             }
@@ -128,6 +131,7 @@ internal fun LazyListScope.homescreenSettingsContent(
             SettingsSection(
                 title = stringResource(Res.string.settings_homescreen_section_hero_sources),
                 isTablet = isTablet,
+                storageScope = SettingsStorageScope.Local,
             ) {
                 HeroSourcesDropdown(
                     isTablet = isTablet,

@@ -42,6 +42,7 @@ internal fun PlaybackP2pSettings(
         SettingsSection(
             title = stringResource(Res.string.settings_playback_section_p2p),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Local,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(

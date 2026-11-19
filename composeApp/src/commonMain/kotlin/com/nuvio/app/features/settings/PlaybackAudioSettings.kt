@@ -34,6 +34,7 @@ internal fun PlaybackAudioSettings(
         SettingsSection(
             title = stringResource(Res.string.settings_playback_page_audio),
             isTablet = isTablet,
+            storageScope = SettingsStorageScope.Cloud,
         ) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsNavigationRow(
@@ -78,6 +79,7 @@ internal fun PlaybackAudioSettings(
             SettingsSection(
                 title = stringResource(Res.string.settings_playback_downmix_section),
                 isTablet = isTablet,
+                storageScope = SettingsStorageScope.Cloud,
             ) {
                 SettingsGroup(isTablet = isTablet) {
                     SettingsSwitchRow(
