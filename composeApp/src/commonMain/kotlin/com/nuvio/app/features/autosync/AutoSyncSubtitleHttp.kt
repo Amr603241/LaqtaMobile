@@ -18,6 +18,7 @@ internal object AutoSyncSubtitleHttp {
         headers: Map<String, String>,
         maxResponseBodyBytes: Int,
         languageHint: String? = null,
+        failOnTruncated: Boolean = false,
     ): RawHttpResponse {
         // Preserve Nuvio's raw-HTTP behavior: let the client negotiate transparent
         // compression instead of forwarding caller-provided Accept-Encoding.
@@ -30,6 +31,7 @@ internal object AutoSyncSubtitleHttp {
             timeoutMs = null,
         ) { response ->
             val limited = readBodyLimited(response.body, maxResponseBodyBytes)
+            require(!failOnTruncated || !limited.truncated) { "Subtitle exceeds the maximum size." }
             // Addon files can use legacy encodings without declaring a charset. Detect from the
             // bytes before decoding so accented letters are not irreversibly replaced with U+FFFD.
             val decoded = SubtitleCharsetDetector.decode(limited.bytes, languageHint = languageHint)

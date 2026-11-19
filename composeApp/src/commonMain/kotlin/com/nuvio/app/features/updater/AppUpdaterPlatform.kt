@@ -14,6 +14,10 @@ expect object AppUpdaterPlatform {
 
     fun setUpdateChannel(channel: String)
 
+    fun getPendingUpdate(channel: UpdateChannel): AppUpdate?
+
+    fun savePendingUpdate(update: AppUpdate, channel: UpdateChannel)
+
     fun deleteDownloadedApk(path: String)
 
     suspend fun downloadApk(

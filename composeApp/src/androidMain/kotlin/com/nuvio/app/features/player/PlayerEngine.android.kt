@@ -325,9 +325,13 @@ private fun ExoPlayerSurface(
                 } else factory
             }
     }
+    val playbackTransferSpeed = remember(sourceUrl, sourceAudioUrl, initialPositionRequestKey) {
+        PlaybackTransferSpeed()
+    }
     val dataSourceFactory = remember(
         context,
         sourceUrl,
+        playbackTransferSpeed,
         sanitizedSourceHeaders,
         sanitizedSourceResponseHeaders,
         useYoutubeChunkedPlayback,
@@ -338,7 +342,7 @@ private fun ExoPlayerSurface(
         playerSettings.vodCacheSizeMb,
     ) {
         val loopbackSource = isLoopbackPlaybackSource(sourceUrl)
-        val upstream = PlatformPlaybackDataSourceFactory.create(
+        val playbackUpstream = PlatformPlaybackDataSourceFactory.create(
             context = context,
             defaultRequestHeaders = sanitizedSourceHeaders,
             defaultResponseHeaders = sanitizedSourceResponseHeaders,
@@ -346,6 +350,9 @@ private fun ExoPlayerSurface(
             useLongReadTimeout = loopbackSource,
             externalSubtitles = externalSubtitles,
         )
+        val upstream = DataSource.Factory {
+            playbackUpstream.createDataSource().also { it.addTransferListener(playbackTransferSpeed) }
+        }
         val mimeType = playbackMediaItemFromUrl(
             url = sourceUrl,
             responseHeaders = sanitizedSourceResponseHeaders,
@@ -1054,6 +1061,9 @@ private fun ExoPlayerSurface(
                         bitDepth = video?.exoBitDepth(),
                     )
                 }
+
+                override suspend fun getDownloadSpeedBytesPerSecond(): Long? =
+                    playbackTransferSpeed.currentBytesPerSecond()
 
                 override fun getSubtitleTracks(): List<SubtitleTrack> {
                     val tracks = exoPlayer.extractSubtitleTracks(context)

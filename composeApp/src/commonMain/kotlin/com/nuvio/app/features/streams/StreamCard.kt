@@ -71,7 +71,7 @@ internal fun StreamCard(
     val partyLabel = if (isCurrent) null else LocalStreamHighlight.current(stream)
     val cardShape = RoundedCornerShape(12.dp)
     val badgeImages = stream.badges.filter { it.imageURL.isNotBlank() }
-    val hasBadges = badgeImages.isNotEmpty() || (showFileSizeBadges && stream.behaviorHints.videoSize != null)
+    val hasBadges = badgeImages.isNotEmpty() || (showFileSizeBadges && stream.knownFileSize() != null)
     Row(
         modifier = modifier
             .fillMaxWidth()

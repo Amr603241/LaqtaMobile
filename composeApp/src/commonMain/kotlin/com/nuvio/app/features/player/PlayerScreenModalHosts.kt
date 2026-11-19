@@ -62,6 +62,7 @@ internal fun PlayerScreenModalHosts(
     onVideoSettingsChanged: () -> Unit,
     onVideoSettingsModalDismissed: () -> Unit,
     showSourcesPanel: Boolean,
+    playbackController: PlayerEngineController?,
     sourceStreamsState: StreamsUiState,
     contentTitle: String,
     activeEpisodeTitle: String?,
@@ -181,6 +182,7 @@ internal fun PlayerScreenModalHosts(
 
     PlayerSourcesPanel(
         visible = showSourcesPanel,
+        playbackController = playbackController,
         streamsUiState = sourceStreamsState,
         contentTitle = contentTitle,
         currentSeason = activeSeasonNumber,
@@ -196,6 +198,7 @@ internal fun PlayerScreenModalHosts(
     if (isSeries) {
         PlayerEpisodesPanel(
             visible = showEpisodesPanel,
+            playbackController = playbackController,
             episodes = allEpisodes,
             parentMetaType = parentMetaType,
             parentMetaId = parentMetaId,

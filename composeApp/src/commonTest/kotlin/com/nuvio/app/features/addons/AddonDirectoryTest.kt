@@ -82,6 +82,37 @@ class AddonDirectoryTest {
     }
 
     @Test
+    fun `content and installation filters combine and sort alphabetically`() {
+        val first = directoryManifest("first", "Zebra", listOf("catalog"))
+            .copy(types = listOf("series"), resources = listOf(AddonResource("catalog", listOf("series"))))
+        val second = directoryManifest("second", "Alpha", listOf("stream"))
+            .copy(types = listOf("series"), resources = listOf(AddonResource("stream", listOf("series"))))
+        val movie = directoryManifest("movie", "Movie", listOf("stream"))
+        val addons = listOf(first, movie, second)
+
+        assertEquals(
+            listOf(second, first),
+            filterAddonDirectory(addons, "", AddonDirectoryFilter.SERIES, false, alphabetical = true),
+        )
+        assertEquals(
+            listOf(first),
+            filterAddonDirectory(
+                addons, "", AddonDirectoryFilter.SERIES, false,
+                installationFilter = AddonInstallationFilter.INSTALLED,
+                installedManifestUrls = setOf(first.transportUrl),
+            ),
+        )
+        assertEquals(
+            listOf(second),
+            filterAddonDirectory(
+                addons, "", AddonDirectoryFilter.SERIES, false,
+                installationFilter = AddonInstallationFilter.NOT_INSTALLED,
+                installedManifestUrls = setOf(first.transportUrl),
+            ),
+        )
+    }
+
+    @Test
     fun `addon catalog URL follows the manifest resource route`() {
         assertEquals(
             "https://stremio-addons.net/api/addon_catalog/all/stremio-addons.net.json",

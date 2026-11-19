@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,11 +24,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,16 +42,22 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.appIconPainter
 import com.nuvio.app.core.ui.backdropControlColor
+import com.nuvio.app.core.ui.NuvioToastController
+import com.nuvio.app.core.deeplink.buildMetaDeepLinkUrl
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_play
 import nuvio.composeapp.generated.resources.details_actions_menu_label
+import nuvio.composeapp.generated.resources.details_copy_link
+import nuvio.composeapp.generated.resources.details_link_copied
 import nuvio.composeapp.generated.resources.hero_add_to_library
 import nuvio.composeapp.generated.resources.hero_mark_unwatched
 import nuvio.composeapp.generated.resources.hero_mark_watched
@@ -245,6 +254,8 @@ fun DetailActionButtons(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DetailActions(
+    metaType: String,
+    metaId: String,
     playLabel: String,
     playEnabled: Boolean,
     isSaved: Boolean,
@@ -258,6 +269,8 @@ fun DetailActions(
     onSaveClick: () -> Unit,
     onSaveLongClick: (() -> Unit)?,
 ) {
+    val clipboard = LocalClipboardManager.current
+    val copiedMessage = stringResource(Res.string.details_link_copied)
     val shuffleAction = onShuffleClick?.let { onClick ->
         DetailSecondaryAction(
             label = stringResource(if (shuffleEnabled) Res.string.shuffle_stop else Res.string.random_episode_title),
@@ -266,34 +279,44 @@ fun DetailActions(
             onClick = onClick,
         )
     }
-    DetailActionButtons(
-        playLabel = if (playEnabled) playLabel else stringResource(Res.string.playback_unavailable),
-        playEnabled = playEnabled,
-        pinnedAction = shuffleAction?.takeIf { shuffleEnabled },
-        secondaryActions = buildList {
-            if (!shuffleEnabled) shuffleAction?.let(::add)
-            add(
-                DetailSecondaryAction(
-                    label = stringResource(if (isWatched) Res.string.hero_mark_unwatched else Res.string.hero_mark_watched),
-                    icon = if (isWatched) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
-                    isActive = isWatched,
-                    onClick = onWatchedClick,
-                ),
-            )
-            add(
-                DetailSecondaryAction(
-                    label = stringResource(if (isSaved) Res.string.hero_remove_from_library else Res.string.hero_add_to_library),
-                    icon = if (isSaved) Icons.Default.Check else Icons.Default.Add,
-                    isActive = isSaved,
-                    onClick = onSaveClick,
-                    onLongClick = onSaveLongClick,
-                ),
-            )
-        },
-        isTablet = isTablet,
-        onPlayClick = onPlayClick,
-        onPlayLongClick = onPlayLongClick,
-    )
+    Column {
+        DetailActionButtons(
+            playLabel = if (playEnabled) playLabel else stringResource(Res.string.playback_unavailable),
+            playEnabled = playEnabled,
+            pinnedAction = shuffleAction?.takeIf { shuffleEnabled },
+            secondaryActions = buildList {
+                if (!shuffleEnabled) shuffleAction?.let(::add)
+                add(
+                    DetailSecondaryAction(
+                        label = stringResource(if (isWatched) Res.string.hero_mark_unwatched else Res.string.hero_mark_watched),
+                        icon = if (isWatched) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
+                        isActive = isWatched,
+                        onClick = onWatchedClick,
+                    ),
+                )
+                add(
+                    DetailSecondaryAction(
+                        label = stringResource(if (isSaved) Res.string.hero_remove_from_library else Res.string.hero_add_to_library),
+                        icon = if (isSaved) Icons.Default.Check else Icons.Default.Add,
+                        isActive = isSaved,
+                        onClick = onSaveClick,
+                        onLongClick = onSaveLongClick,
+                    ),
+                )
+            },
+            isTablet = isTablet,
+            onPlayClick = onPlayClick,
+            onPlayLongClick = onPlayLongClick,
+        )
+        TextButton(onClick = {
+            clipboard.setText(AnnotatedString(buildMetaDeepLinkUrl(metaType, metaId)))
+            NuvioToastController.show(copiedMessage)
+        }) {
+            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(stringResource(Res.string.details_copy_link))
+        }
+    }
 }
 
 @Composable

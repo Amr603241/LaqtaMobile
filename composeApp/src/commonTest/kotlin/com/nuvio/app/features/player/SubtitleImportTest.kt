@@ -16,6 +16,7 @@ class SubtitleImportTest {
         assertFalse(isHttpSubtitleUrl("https:///captions/movie.srt"))
         assertFalse(isHttpSubtitleUrl("https://example.org/captions/my captions.srt"))
         assertFalse(isHttpSubtitleUrl("https://user@example.org/captions/movie.srt"))
+        assertFalse(isHttpSubtitleUrl("https://example.org:invalid/movie.srt"))
     }
 
     @Test
@@ -44,5 +45,18 @@ class SubtitleImportTest {
                 text = "<html><body>not a subtitle</body></html>",
             ),
         )
+    }
+
+    @Test
+    fun acceptsSrtVttAndAssSubtitleFiles() {
+        val samples = mapOf(
+            "movie.srt" to "1\n00:00:01,000 --> 00:00:02,000\nمرحبا\n",
+            "movie.vtt" to "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nمرحبا\n",
+            "movie.ass" to "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" +
+                "Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,مرحبا\n",
+        )
+        for ((name, text) in samples) {
+            assertNotNull(importedSubtitleFromText(name, name, name, "ar", text), name)
+        }
     }
 }

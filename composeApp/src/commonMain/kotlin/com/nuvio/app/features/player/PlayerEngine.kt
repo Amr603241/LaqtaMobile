@@ -46,6 +46,7 @@ interface PlayerEngineController {
     fun updateNowPlayingMetadata(info: PlayerNowPlayingInfo) {}
     fun clearNowPlayingInfo() {}
     suspend fun getMediaInfo(): PlayerMediaInfo = PlayerMediaInfo()
+    suspend fun getDownloadSpeedBytesPerSecond(): Long? = null
     /** The loaded file's chapters, unsorted; empty when the engine cannot read them. */
     suspend fun getChapters(): List<PlayerChapter> = emptyList()
 }

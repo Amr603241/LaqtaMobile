@@ -1,6 +1,8 @@
 package com.nuvio.app.features.player
 
 import androidx.compose.runtime.Composable
+import com.nuvio.app.features.autosync.SubtitleCharsetDetector
+import io.ktor.http.Url
 
 internal const val MaxImportedSubtitleBytes = 10 * 1024 * 1024
 
@@ -22,8 +24,19 @@ internal fun isHttpSubtitleUrl(value: String): Boolean {
     val scheme = url.substringBefore("://", missingDelimiterValue = "").lowercase()
     if (scheme != "http" && scheme != "https") return false
     val authority = url.substringAfter("://", "").substringBefore('/').substringBefore('?').substringBefore('#')
-    return authority.isNotBlank() && '@' !in authority
+    if (authority.isBlank() || '@' in authority) return false
+    val parsed = runCatching { Url(url) }.getOrNull() ?: return false
+    return parsed.host.isNotBlank() && parsed.port in 1..65535
 }
+
+internal fun subtitleCharsetHint(language: String): String? =
+    language.trim().takeUnless {
+        it.isBlank() || it.equals("unknown", ignoreCase = true) ||
+            it.equals("en", ignoreCase = true) || it.equals("eng", ignoreCase = true)
+    }
+
+internal fun normalizeImportedSubtitle(bytes: ByteArray, language: String): ByteArray =
+    SubtitleCharsetDetector.normalizeToUtf8(bytes, languageHint = subtitleCharsetHint(language))
 
 internal expect object SubtitleImportStorage {
     fun save(name: String, bytes: ByteArray): String

@@ -6,6 +6,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.i18n.localizedByteUnit
+import com.nuvio.app.core.sync.AppForegroundMonitor
+import com.nuvio.app.core.sync.AppVisibility
 import com.nuvio.app.core.ui.NuvioToastController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -16,6 +18,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
@@ -54,6 +57,9 @@ class AppUpdaterController internal constructor(
         assetName: String,
         onProgress: (downloadedBytes: Long, totalBytes: Long?) -> Unit,
     ) -> Result<String> = AppUpdaterPlatform::downloadApk,
+    private val awaitForeground: suspend () -> Unit = {
+        AppForegroundMonitor.events().first { it == AppVisibility.Foreground }
+    },
 ) {
     private val _uiState = MutableStateFlow(AppUpdaterUiState(updateChannel = preferences.channel.value))
     val uiState: StateFlow<AppUpdaterUiState> = _uiState.asStateFlow()
@@ -85,6 +91,17 @@ class AppUpdaterController internal constructor(
             return
         }
         autoCheckStarted = true
+        val pending = AppUpdaterPlatform.getPendingUpdate(preferences.channel.value)
+        if (pending != null &&
+            pending.tag != AppUpdaterPlatform.getIgnoredTag() &&
+            VersionUtils.isRemoteNewer(pending.tag, AppVersionConfig.VERSION_NAME)
+        ) {
+            _uiState.update { state ->
+                state.copy(update = pending, isUpdateAvailable = true, showDialog = true)
+            }
+            downloadUpdate()
+            return
+        }
         checkForUpdates(force = false, showNoUpdateFeedback = false)
     }
 
@@ -225,19 +242,26 @@ class AppUpdaterController internal constructor(
                 )
             }
 
-            val result = downloadApk(
-                update.assetUrl,
-                update.assetName,
-            ) { downloadedBytes, totalBytes ->
-                downloadContext.ensureActive()
-                val progress = if (totalBytes != null && totalBytes > 0L) {
-                    (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    null
+            val result = try {
+                AppUpdaterPlatform.savePendingUpdate(update, channel)
+                downloadApk(
+                    update.assetUrl,
+                    update.assetName,
+                ) { downloadedBytes, totalBytes ->
+                    downloadContext.ensureActive()
+                    val progress = if (totalBytes != null && totalBytes > 0L) {
+                        (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                    } else {
+                        null
+                    }
+                    _uiState.update { state ->
+                        if (state.updateChannel == channel) state.copy(downloadProgress = progress) else state
+                    }
                 }
-                _uiState.update { state ->
-                    if (state.updateChannel == channel) state.copy(downloadProgress = progress) else state
-                }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Result.failure(error)
             }
             currentCoroutineContext().ensureActive()
             if (channel != preferences.channel.value) return@launch
@@ -250,7 +274,12 @@ class AppUpdaterController internal constructor(
                         errorMessage = null,
                     )
                 }
-                installDownloadedUpdate()
+                awaitForeground()
+                if (_uiState.value.downloadedApkPath == path &&
+                    _uiState.value.update?.tag != AppUpdaterPlatform.getIgnoredTag()
+                ) {
+                    installDownloadedUpdate()
+                }
             }.onFailure { error ->
                 _uiState.update { state ->
                     state.copy(

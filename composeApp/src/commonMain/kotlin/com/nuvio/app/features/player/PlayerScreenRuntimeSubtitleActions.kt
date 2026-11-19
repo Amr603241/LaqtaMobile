@@ -5,12 +5,16 @@ import com.nuvio.app.core.i18n.localizedNoSubtitleLinesFound
 import com.nuvio.app.core.i18n.localizedSubtitleLinesLoadError
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.autosync.AutoSyncPlayerController
+import com.nuvio.app.features.autosync.AutoSyncSubtitleHttp
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.subtitle_download_failed
+import nuvio.composeapp.generated.resources.subtitle_added
 import nuvio.composeapp.generated.resources.subtitle_invalid_or_unsupported
 import org.jetbrains.compose.resources.getString
 
@@ -21,23 +25,38 @@ internal fun PlayerScreenRuntime.addSubtitleFromUrl(url: String, language: Strin
     }
     scope.launch {
         try {
-            val text = withTimeoutOrNull(15_000L) {
-                httpGetTextWithHeaders(url.trim(), emptyMap())
+            val response = withTimeoutOrNull(15_000L) {
+                AutoSyncSubtitleHttp.get(
+                    url = url.trim(),
+                    headers = emptyMap(),
+                    maxResponseBodyBytes = MaxImportedSubtitleBytes,
+                    languageHint = subtitleCharsetHint(language),
+                    failOnTruncated = true,
+                )
             } ?: error(getString(Res.string.subtitle_download_failed))
+            check(response.status in 200..299) { getString(Res.string.subtitle_download_failed) }
+            val text = response.body
             val subtitle = importedSubtitleFromText(
                 id = "url:${url.trim()}",
                 name = url.substringAfterLast('/').substringBefore('?').ifBlank { "Subtitle" },
                 url = url.trim(),
                 language = language,
                 text = text,
-            ) ?: error(getString(Res.string.subtitle_invalid_or_unsupported))
+            )
+            if (subtitle == null) {
+                NuvioToastController.show(getString(Res.string.subtitle_invalid_or_unsupported))
+                return@launch
+            }
             val extension = PlayerSubtitleCueParser.fileExtension(text, url)
             val fileName = "${subtitle.display.substringBeforeLast('.', subtitle.display)}.$extension"
-            val localUri = SubtitleImportStorage.save(fileName, text.encodeToByteArray())
+            val localUri = withContext(Dispatchers.IO) {
+                SubtitleImportStorage.save(fileName, text.encodeToByteArray())
+            }
             addImportedSubtitle(subtitle.copy(id = localUri, url = localUri))
+            NuvioToastController.show(getString(Res.string.subtitle_added))
         } catch (error: Exception) {
             if (error is CancellationException) throw error
-            NuvioToastController.show(error.message ?: getString(Res.string.subtitle_download_failed))
+            NuvioToastController.show(getString(Res.string.subtitle_download_failed))
         }
     }
 }

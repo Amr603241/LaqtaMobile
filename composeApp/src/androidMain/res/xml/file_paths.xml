@@ -6,6 +6,9 @@
     <cache-path
         name="nuvio_subtitles"
         path="subtitles/" />
+    <external-files-path
+        name="nuvio_update_downloads"
+        path="Download/updates/" />
     <files-path
         name="nuvio_downloads"
         path="downloads/" />

@@ -19,6 +19,13 @@ actual object AppUpdaterPlatform {
         AndroidAppUpdaterPlatform.setUpdateChannel(channel)
     }
 
+    actual fun getPendingUpdate(channel: UpdateChannel): AppUpdate? =
+        AndroidAppUpdaterPlatform.getPendingUpdate(channel)
+
+    actual fun savePendingUpdate(update: AppUpdate, channel: UpdateChannel) {
+        AndroidAppUpdaterPlatform.savePendingUpdate(update, channel)
+    }
+
     actual fun deleteDownloadedApk(path: String) {
         AndroidAppUpdaterPlatform.deleteDownloadedApk(path)
     }

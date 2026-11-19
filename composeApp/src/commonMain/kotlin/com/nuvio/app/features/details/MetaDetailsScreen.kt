@@ -1184,6 +1184,8 @@ fun MetaDetailsScreen(
                                                 actions = if (isSectionEnabled(MetaScreenSectionKey.ACTIONS)) {
                                                     {
                                                         DetailActions(
+                                                            metaType = meta.type,
+                                                            metaId = meta.id,
                                                             playLabel = playButtonLabel,
                                                             playEnabled = isPrimaryPlayEnabled,
                                                             isSaved = isSaved,
@@ -2360,6 +2362,8 @@ private fun ConfiguredMetaSections(
         when (key) {
             MetaScreenSectionKey.ACTIONS -> {
                 DetailActions(
+                    metaType = meta.type,
+                    metaId = meta.id,
                     playLabel = playButtonLabel,
                     playEnabled = isPrimaryPlayEnabled,
                     isSaved = isSaved,

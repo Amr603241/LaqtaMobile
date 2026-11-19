@@ -94,6 +94,32 @@ class AppUpdaterControllerTest {
     }
 
     @Test
+    fun autoCheckRestoresPendingDownloadWithoutFetchingRelease() {
+        val context = RuntimeEnvironment.getApplication()
+        context.applicationInfo.flags = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE.inv()
+        val pending = update("999.0.0")
+        AppUpdaterPlatform.savePendingUpdate(pending, UpdateChannel.STABLE)
+        var fetchCount = 0
+        var downloadCount = 0
+        val controller = controller(
+            fetch = {
+                fetchCount++
+                Result.failure(IllegalStateException("Offline"))
+            },
+            downloadApk = { _, _, _ ->
+                downloadCount++
+                Result.failure(IllegalStateException("Network unavailable"))
+            },
+        )
+
+        controller.ensureAutoCheckStarted()
+
+        assertEquals(0, fetchCount)
+        assertEquals(1, downloadCount)
+        assertEquals(pending, controller.uiState.value.update)
+    }
+
+    @Test
     fun manualCheckDownloadsNewReleaseInDebugBuild() {
         AppUpdaterPlatform.setIgnoredTag("999.0.0")
         var downloadCount = 0
@@ -129,6 +155,26 @@ class AppUpdaterControllerTest {
 
         assertEquals(1, downloadCount)
         assertEquals("test-update.apk", controller.uiState.value.downloadedApkPath)
+    }
+
+    @Test
+    fun completedDownloadWaitsForForegroundBeforeInstallation() {
+        val foreground = CompletableDeferred<Unit>()
+        val controller = AppUpdaterController(
+            scope = scope,
+            preferences = preferences,
+            fetchUpdate = { Result.success(update("999.0.0")) },
+            downloadApk = { _, _, _ -> Result.success("missing-update.apk") },
+            awaitForeground = { foreground.await() },
+        )
+
+        controller.checkForUpdates(force = true, showNoUpdateFeedback = false, downloadWhenDebug = true)
+        assertEquals("missing-update.apk", controller.uiState.value.downloadedApkPath)
+        assertNull(controller.uiState.value.errorMessage)
+        assertFalse(controller.uiState.value.showUnknownSourcesDialog)
+
+        foreground.complete(Unit)
+        assertTrue(controller.uiState.value.errorMessage != null || controller.uiState.value.showUnknownSourcesDialog)
     }
 
     @Test
@@ -226,7 +272,8 @@ class AppUpdaterControllerTest {
             scope,
             preferences,
             fetch,
-        ) { _, _, _ -> Result.failure(IllegalStateException("Test download failure")) }
+            downloadApk = { _, _, _ -> Result.failure(IllegalStateException("Test download failure")) },
+        )
 
     private fun controller(
         fetch: suspend (UpdateChannel) -> Result<AppUpdate>,

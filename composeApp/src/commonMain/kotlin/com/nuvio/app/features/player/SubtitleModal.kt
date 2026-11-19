@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_cancel
 import nuvio.composeapp.generated.resources.addon_title
@@ -63,6 +68,7 @@ import nuvio.composeapp.generated.resources.compose_player_style
 import nuvio.composeapp.generated.resources.compose_player_subtitles
 import nuvio.composeapp.generated.resources.subtitle_add_from_url
 import nuvio.composeapp.generated.resources.subtitle_add_action
+import nuvio.composeapp.generated.resources.subtitle_added
 import nuvio.composeapp.generated.resources.subtitle_download_failed
 import nuvio.composeapp.generated.resources.subtitle_import_from_device
 import nuvio.composeapp.generated.resources.subtitle_invalid_or_unsupported
@@ -149,30 +155,42 @@ fun SubtitleModal(
     }
     val invalidSubtitleMessage = stringResource(Res.string.subtitle_invalid_or_unsupported)
     val downloadSubtitleMessage = stringResource(Res.string.subtitle_download_failed)
+    val subtitleAddedMessage = stringResource(Res.string.subtitle_added)
+    val importScope = rememberCoroutineScope()
     val importSubtitleFile = rememberSubtitleFileImporter { result ->
         result.fold(
             onSuccess = { file ->
-                val subtitle = importedSubtitleFromText(
-                    id = file.name,
-                    name = file.name,
-                    url = file.name,
-                    language = preferredSubtitleLanguage,
-                    text = file.bytes.decodeToString(),
-                )
-                if (subtitle == null) {
-                    NuvioToastController.show(invalidSubtitleMessage)
-                } else {
-                    runCatching { SubtitleImportStorage.save(file.name, file.bytes) }
-                        .onSuccess { localUri ->
-                            onImportedSubtitle(subtitle.copy(id = localUri, url = localUri))
+                importScope.launch {
+                    try {
+                        val subtitle = withContext(Dispatchers.Default) {
+                            val bytes = normalizeImportedSubtitle(file.bytes, preferredSubtitleLanguage)
+                            val imported = importedSubtitleFromText(
+                                id = file.name,
+                                name = file.name,
+                                url = file.name,
+                                language = preferredSubtitleLanguage,
+                                text = bytes.decodeToString(),
+                            )
+                            if (imported == null) null else {
+                                val localUri = withContext(Dispatchers.IO) {
+                                    SubtitleImportStorage.save(file.name, bytes)
+                                }
+                                imported.copy(id = localUri, url = localUri)
+                            }
                         }
-                        .onFailure { error ->
-                            NuvioToastController.show(error.message ?: downloadSubtitleMessage)
+                        if (subtitle == null) NuvioToastController.show(invalidSubtitleMessage)
+                        else {
+                            onImportedSubtitle(subtitle)
+                            NuvioToastController.show(subtitleAddedMessage)
                         }
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        NuvioToastController.show(downloadSubtitleMessage)
+                    }
                 }
             },
-            onFailure = { error ->
-                NuvioToastController.show(error.message ?: downloadSubtitleMessage)
+            onFailure = {
+                NuvioToastController.show(downloadSubtitleMessage)
             },
         )
     }

@@ -24,6 +24,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun PlayerSourcesPanel(
     visible: Boolean,
+    playbackController: PlayerEngineController?,
     streamsUiState: StreamsUiState,
     contentTitle: String,
     currentSeason: Int?,
@@ -79,6 +80,8 @@ fun PlayerSourcesPanel(
             )
 
             Spacer(Modifier.height(16.dp))
+
+            PlayerPlaybackDownloadSpeed(playbackController, visible)
 
             PlayerProviderFilterRow(
                 streamsUiState = streamsUiState,

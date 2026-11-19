@@ -67,6 +67,7 @@ import com.nuvio.app.core.i18n.localizedEpisodeTitle
 @Composable
 fun PlayerEpisodesPanel(
     visible: Boolean,
+    playbackController: PlayerEngineController?,
     episodes: List<MetaVideo>,
     parentMetaType: String,
     parentMetaId: String,
@@ -113,6 +114,8 @@ fun PlayerEpisodesPanel(
             if (episodeStreamsState.showStreams) {
                 EpisodeStreamsPanelContent(
                     state = episodeStreamsState,
+                    playbackController = playbackController,
+                    visible = visible,
                     onFilterSelected = onEpisodeStreamFilterSelected,
                     onStreamSelected = onEpisodeStreamSelected,
                     onBack = onBackToEpisodes,
@@ -433,6 +436,8 @@ private fun EpisodeRow(
 @Composable
 private fun EpisodeStreamsPanelContent(
     state: EpisodeStreamsPanelState,
+    playbackController: PlayerEngineController?,
+    visible: Boolean,
     onFilterSelected: (String?) -> Unit,
     onStreamSelected: (StreamItem, MetaVideo) -> Unit,
     onBack: () -> Unit,
@@ -478,6 +483,8 @@ private fun EpisodeStreamsPanelContent(
         }
 
         Spacer(Modifier.height(16.dp))
+
+        PlayerPlaybackDownloadSpeed(playbackController, visible)
 
         PlayerProviderFilterRow(
             streamsUiState = streamsUiState,

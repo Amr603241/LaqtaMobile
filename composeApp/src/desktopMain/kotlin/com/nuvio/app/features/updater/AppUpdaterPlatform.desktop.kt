@@ -19,6 +19,10 @@ actual object AppUpdaterPlatform {
 
     actual fun setUpdateChannel(channel: String) = Unit
 
+    actual fun getPendingUpdate(channel: UpdateChannel): AppUpdate? = null
+
+    actual fun savePendingUpdate(update: AppUpdate, channel: UpdateChannel) = Unit
+
     actual fun deleteDownloadedApk(path: String) = Unit
 
     actual suspend fun downloadApk(

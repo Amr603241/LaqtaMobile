@@ -15,6 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -103,5 +104,18 @@ class AutoSyncHttpIndexTest {
         val truncated = AutoSyncSubtitleHttp.get(url, emptyMap(), 10, languageHint = "pol")
         assertTrue(truncated.body.endsWith("\n...[truncated]"))
         assertEquals(text.take(10), truncated.body.removeSuffix("\n...[truncated]"))
+    }
+
+    @Test
+    fun `subtitle import decodes Arabic and rejects oversized responses`() = runBlocking {
+        val text = "1\n00:00:01,000 --> 00:00:02,000\nمرحبا بالعالم\n"
+        files["/ar.srt"] = text.toByteArray(Charset.forName("windows-1256"))
+        val url = server.url("/ar.srt").toString()
+
+        assertEquals(text, AutoSyncSubtitleHttp.get(url, emptyMap(), 1024, "ar", true).body)
+        assertFailsWith<IllegalArgumentException> {
+            AutoSyncSubtitleHttp.get(url, emptyMap(), 10, "ar", true)
+        }
+        Unit
     }
 }

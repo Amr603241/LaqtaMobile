@@ -214,6 +214,10 @@ data class StreamBehaviorHints(
     val proxyHeaders: StreamProxyHeaders? = null,
 )
 
+internal fun StreamItem.knownFileSize(): Long? =
+    listOfNotNull(clientResolve?.stream?.raw?.size, behaviorHints.videoSize, debridCacheStatus?.cachedSize)
+        .firstOrNull { it > 0L }
+
 data class StreamProxyHeaders(
     val request: Map<String, String>? = null,
     val response: Map<String, String>? = null,

@@ -1,6 +1,7 @@
 package com.nuvio.app.features.autosync
 
 import java.nio.charset.Charset
+import com.nuvio.app.features.player.normalizeImportedSubtitle
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,6 +11,14 @@ import kotlin.test.assertEquals
  * legacy encodings with a language hint must decode back to the original text.
  */
 class SubtitleCharsetDetectorTest {
+
+    @Test
+    fun `local Arabic subtitle bytes are normalized to UTF-8`() {
+        val text = "1\n00:00:01,000 --> 00:00:02,000\nمرحبا بالعالم\n"
+        val bytes = text.toByteArray(Charset.forName("windows-1256"))
+        assertEquals(text, normalizeImportedSubtitle(bytes, "ar").decodeToString())
+        assertEquals(text, normalizeImportedSubtitle(bytes, "en").decodeToString())
+    }
 
     private fun subtitle(vararg lines: String): String = buildString {
         lines.forEachIndexed { index, line ->

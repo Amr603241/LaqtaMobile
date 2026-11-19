@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -108,6 +109,9 @@ internal fun AddonsSettingsPageContent(
     var directoryLoaded by remember { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedFilter by rememberSaveable { mutableStateOf(AddonDirectoryFilter.ALL) }
+    var installationFilter by rememberSaveable { mutableStateOf(AddonInstallationFilter.ALL) }
+    var alphabetical by rememberSaveable { mutableStateOf(false) }
+    var installingUrl by remember { mutableStateOf<String?>(null) }
     var includeAdultAddons by rememberSaveable { mutableStateOf(false) }
     var visibleAddonCount by rememberSaveable { mutableIntStateOf(30) }
     val enterAddonUrlMessage = stringResource(Res.string.addons_error_enter_url)
@@ -144,27 +148,33 @@ internal fun AddonsSettingsPageContent(
         }
     }
 
-    LaunchedEffect(searchQuery, selectedFilter, includeAdultAddons) {
+    LaunchedEffect(searchQuery, selectedFilter, installationFilter, alphabetical, includeAdultAddons) {
         visibleAddonCount = ADDON_DIRECTORY_PAGE_SIZE
     }
 
     fun installAddon(manifestUrl: String) {
+        if (installingUrl != null) return
+        installingUrl = manifestUrl
         installModalState = AddonInstallModalState.Checking
         coroutineScope.launch {
-            when (val result = AddonRepository.addAddon(manifestUrl)) {
-                is AddAddonResult.Success -> {
-                    addonUrl = ""
-                    installModalState = AddonInstallModalState.Success(result.manifest.name)
-                }
+            try {
+                when (val result = AddonRepository.addAddon(manifestUrl)) {
+                    is AddAddonResult.Success -> {
+                        addonUrl = ""
+                        installModalState = AddonInstallModalState.Success(result.manifest.name)
+                    }
 
-                is AddAddonResult.TrackingConsentRequired -> {
-                    AddonRepository.requestTrackingConsent(result.manifest)
-                    installModalState = null
-                }
+                    is AddAddonResult.TrackingConsentRequired -> {
+                        AddonRepository.requestTrackingConsent(result.manifest)
+                        installModalState = null
+                    }
 
-                is AddAddonResult.Error -> {
-                    installModalState = AddonInstallModalState.Error(result.message)
+                    is AddAddonResult.Error -> {
+                        installModalState = AddonInstallModalState.Error(result.message)
+                    }
                 }
+            } finally {
+                installingUrl = null
             }
         }
     }
@@ -261,17 +271,30 @@ internal fun AddonsSettingsPageContent(
                 }
             }
         } else {
+            val installedByDirectoryUrl = remember(directoryState.addons, uiState.addons) {
+                directoryState.addons.mapNotNull { manifest ->
+                    val exact = uiState.addons.firstOrNull { it.manifestUrl == manifest.transportUrl }
+                    val matchingId = uiState.addons.filter { it.manifest?.id == manifest.id }.singleOrNull()
+                    (exact ?: matchingId)?.let { manifest.transportUrl to it.manifestUrl }
+                }.toMap()
+            }
             val filteredAddons = remember(
                 directoryState.addons,
                 searchQuery,
                 selectedFilter,
                 includeAdultAddons,
+                installationFilter,
+                alphabetical,
+                installedByDirectoryUrl,
             ) {
                 filterAddonDirectory(
                     addons = directoryState.addons,
                     query = searchQuery,
                     filter = selectedFilter,
                     includeAdult = includeAdultAddons,
+                    installationFilter = installationFilter,
+                    installedManifestUrls = installedByDirectoryUrl.keys,
+                    alphabetical = alphabetical,
                 )
             }
             AddonDirectoryContent(
@@ -280,6 +303,10 @@ internal fun AddonsSettingsPageContent(
                 onQueryChange = { searchQuery = it },
                 selectedFilter = selectedFilter,
                 onFilterChange = { selectedFilter = it },
+                installationFilter = installationFilter,
+                onInstallationFilterChange = { installationFilter = it },
+                alphabetical = alphabetical,
+                onAlphabeticalChange = { alphabetical = it },
                 includeAdultAddons = includeAdultAddons,
                 onIncludeAdultAddonsChange = { includeAdultAddons = it },
                 visibleAddonCount = visibleAddonCount,
@@ -287,11 +314,11 @@ internal fun AddonsSettingsPageContent(
                 onRefresh = {
                     coroutineScope.launch { loadDirectory(forceRefresh = true) }
                 },
-                installedManifestUrls = remember(uiState.addons) {
-                    uiState.addons.mapTo(mutableSetOf()) { it.manifestUrl }
-                },
+                installedManifestUrls = installedByDirectoryUrl.keys,
+                installingUrl = installingUrl,
                 filteredAddons = filteredAddons,
                 onInstall = ::installAddon,
+                onRemove = { url -> addonPendingDeletionUrl = installedByDirectoryUrl[url] },
                 onConfigure = ::configureAddon,
             )
         }
@@ -393,14 +420,20 @@ private fun AddonDirectoryContent(
     onQueryChange: (String) -> Unit,
     selectedFilter: AddonDirectoryFilter,
     onFilterChange: (AddonDirectoryFilter) -> Unit,
+    installationFilter: AddonInstallationFilter,
+    onInstallationFilterChange: (AddonInstallationFilter) -> Unit,
+    alphabetical: Boolean,
+    onAlphabeticalChange: (Boolean) -> Unit,
     includeAdultAddons: Boolean,
     onIncludeAdultAddonsChange: (Boolean) -> Unit,
     visibleAddonCount: Int,
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
     installedManifestUrls: Set<String>,
+    installingUrl: String?,
     filteredAddons: List<AddonManifest>,
     onInstall: (String) -> Unit,
+    onRemove: (String) -> Unit,
     onConfigure: (String) -> Unit,
 ) {
     SectionHeader(stringResource(Res.string.addons_browse_title))
@@ -436,6 +469,10 @@ private fun AddonDirectoryContent(
                             stringResource(
                                 when (filter) {
                                     AddonDirectoryFilter.ALL -> Res.string.addons_browse_filter_all
+                                    AddonDirectoryFilter.MOVIES -> Res.string.addons_filter_movies
+                                    AddonDirectoryFilter.SERIES -> Res.string.addons_filter_series
+                                    AddonDirectoryFilter.ANIME -> Res.string.addons_filter_anime
+                                    AddonDirectoryFilter.LIVE -> Res.string.addons_filter_live
                                     AddonDirectoryFilter.CATALOGS -> Res.string.addons_browse_filter_catalogs
                                     AddonDirectoryFilter.STREAMS -> Res.string.addons_browse_filter_streams
                                     AddonDirectoryFilter.SUBTITLES -> Res.string.addons_browse_filter_subtitles
@@ -443,6 +480,33 @@ private fun AddonDirectoryContent(
                             ),
                         )
                     },
+                )
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AddonInstallationFilter.entries.forEach { filter ->
+                    FilterChip(
+                        selected = installationFilter == filter,
+                        onClick = { onInstallationFilterChange(filter) },
+                        label = {
+                            Text(stringResource(when (filter) {
+                                AddonInstallationFilter.ALL -> Res.string.addons_browse_filter_all
+                                AddonInstallationFilter.INSTALLED -> Res.string.addons_browse_installed
+                                AddonInstallationFilter.NOT_INSTALLED -> Res.string.addons_filter_not_installed
+                            }))
+                        },
+                    )
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = !alphabetical,
+                    onClick = { onAlphabeticalChange(false) },
+                    label = { Text(stringResource(Res.string.addons_sort_directory)) },
+                )
+                FilterChip(
+                    selected = alphabetical,
+                    onClick = { onAlphabeticalChange(true) },
+                    label = { Text(stringResource(Res.string.addons_sort_alphabetical)) },
                 )
             }
         }
@@ -523,7 +587,9 @@ private fun AddonDirectoryContent(
                 AddonDirectoryCard(
                     manifest = addon,
                     isInstalled = addon.transportUrl in installedManifestUrls,
+                    isInstalling = addon.transportUrl == installingUrl,
                     onInstall = { onInstall(addon.transportUrl) },
+                    onRemove = { onRemove(addon.transportUrl) },
                     onConfigure = { onConfigure(addon.transportUrl) },
                 )
             }
@@ -549,7 +615,9 @@ private fun AddonDirectoryContent(
 private fun AddonDirectoryCard(
     manifest: AddonManifest,
     isInstalled: Boolean,
+    isInstalling: Boolean,
     onInstall: () -> Unit,
+    onRemove: () -> Unit,
     onConfigure: () -> Unit,
 ) {
     NuvioSurfaceCard {
@@ -589,6 +657,11 @@ private fun AddonDirectoryCard(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text(
+            text = stringResource(Res.string.addons_version, manifest.version),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -607,18 +680,19 @@ private fun AddonDirectoryCard(
                 onClick = onConfigure,
             )
         }
-        if (!manifest.behaviorHints.configurationRequired || isInstalled) {
+        if (isInstalling) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        } else if (!manifest.behaviorHints.configurationRequired || isInstalled) {
             if (manifest.canConfigure) Spacer(modifier = Modifier.height(8.dp))
             NuvioPrimaryButton(
                 text = stringResource(
                     if (isInstalled) {
-                        Res.string.addons_browse_installed
+                        Res.string.action_delete
                     } else {
                         Res.string.addons_browse_add
                     },
                 ),
-                enabled = !isInstalled,
-                onClick = onInstall,
+                onClick = if (isInstalled) onRemove else onInstall,
             )
         }
     }

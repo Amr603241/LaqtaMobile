@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 fun readXcconfigValue(file: File, key: String): String? {
     if (!file.exists()) return null
@@ -226,3 +226,4 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:${libs.versions.composeMultiplatform.get()}")
     debugImplementation("androidx.compose.ui:ui-test-manifest:${libs.versions.composeMultiplatform.get()}")
 }
+

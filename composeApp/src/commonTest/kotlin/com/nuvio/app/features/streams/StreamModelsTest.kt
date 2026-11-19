@@ -8,6 +8,19 @@ import kotlin.test.assertTrue
 
 class StreamModelsTest {
 
+    @Test
+    fun `file size uses available positive source metadata`() {
+        val base = StreamItem(addonName = "Test", addonId = "test")
+        val cached = base.copy(debridCacheStatus = StreamDebridCacheStatus(
+            providerId = "provider", providerName = "Provider",
+            state = StreamDebridCacheState.CACHED, cachedSize = 512,
+        ))
+        assertNull(base.knownFileSize())
+        assertEquals(512L, cached.knownFileSize())
+        assertEquals(256L, cached.copy(behaviorHints = StreamBehaviorHints(videoSize = 256)).knownFileSize())
+        assertEquals(512L, cached.copy(behaviorHints = StreamBehaviorHints(videoSize = -1)).knownFileSize())
+    }
+
     private val hexHash = "0123456789abcdef0123456789abcdef01234567"
     private val base32Hash = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 

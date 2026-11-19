@@ -725,6 +725,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         },
         onVideoSettingsModalDismissed = { showVideoSettingsModal = false },
         showSourcesPanel = showSourcesPanel,
+        playbackController = playerController,
         sourceStreamsState = sourceStreamsState,
         contentTitle = title,
         activeEpisodeTitle = activeEpisodeTitle,

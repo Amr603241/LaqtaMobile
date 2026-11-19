@@ -2,6 +2,17 @@
     <string name="subtitle_search_addons">Search subtitle add-ons</string>
     <string name="subtitle_add_from_url">Add from URL</string>
     <string name="subtitle_import_from_device">Choose subtitle file</string>
+    <string name="subtitle_added">Subtitle added</string>
+    <string name="addons_filter_movies">Movies</string>
+    <string name="addons_filter_series">Series</string>
+    <string name="addons_filter_anime">Anime</string>
+    <string name="addons_filter_live">Live TV</string>
+    <string name="addons_filter_not_installed">Not installed</string>
+    <string name="addons_sort_directory">Directory order</string>
+    <string name="addons_sort_alphabetical">Alphabetical</string>
+    <string name="addons_version">Version %1$s</string>
+    <string name="details_copy_link">Copy link to share</string>
+    <string name="details_link_copied">Link copied</string>
     <string name="subtitle_url_dialog_title">Add subtitle from URL</string>
     <string name="subtitle_url_placeholder">Direct subtitle file URL</string>
     <string name="subtitle_language_placeholder">Language code (e.g. en, ar)</string>
@@ -501,6 +512,8 @@
     <string name="compose_player_outline_color">Outline Color</string>
     <string name="compose_player_panel_episodes">Episodes</string>
     <string name="compose_player_panel_sources">Sources</string>
+    <string name="player_current_download_speed">Current playback download speed: %1$s</string>
+    <string name="player_download_speed_unavailable">Unavailable</string>
     <string name="compose_player_chapters">Chapters</string>
     <string name="compose_player_panel_chapters">Chapters (%1$d)</string>
     <string name="compose_player_chapter_number">Chapter %1$d</string>

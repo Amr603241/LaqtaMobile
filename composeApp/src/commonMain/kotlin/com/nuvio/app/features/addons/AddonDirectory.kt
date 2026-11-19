@@ -15,12 +15,11 @@ internal data class AddonDirectoryResult(
     val invalidEntryCount: Int,
 )
 
-internal enum class AddonDirectoryFilter(val resourceName: String?) {
-    ALL(null),
-    CATALOGS("catalog"),
-    STREAMS("stream"),
-    SUBTITLES("subtitles"),
+internal enum class AddonDirectoryFilter {
+    ALL, MOVIES, SERIES, ANIME, LIVE, CATALOGS, STREAMS, SUBTITLES,
 }
+
+internal enum class AddonInstallationFilter { ALL, INSTALLED, NOT_INSTALLED }
 
 internal val AddonManifest.canConfigure: Boolean
     get() = behaviorHints.configurable || behaviorHints.configurationRequired
@@ -30,11 +29,28 @@ internal fun filterAddonDirectory(
     query: String,
     filter: AddonDirectoryFilter,
     includeAdult: Boolean,
+    installationFilter: AddonInstallationFilter = AddonInstallationFilter.ALL,
+    installedManifestUrls: Set<String> = emptySet(),
+    alphabetical: Boolean = false,
 ): List<AddonManifest> {
     val normalizedQuery = query.trim()
-    return addons.filter { addon ->
+    val filtered = addons.filter { addon ->
+        val types = addon.types + addon.resources.flatMap { it.types } + addon.catalogs.map { it.type }
+        val matchesType = when (filter) {
+            AddonDirectoryFilter.ALL -> true
+            AddonDirectoryFilter.MOVIES -> types.any { it.equals("movie", ignoreCase = true) }
+            AddonDirectoryFilter.SERIES -> types.any { it.equals("series", ignoreCase = true) }
+            AddonDirectoryFilter.ANIME -> types.any { it.equals("anime", ignoreCase = true) }
+            AddonDirectoryFilter.LIVE -> types.any { it.equals("tv", ignoreCase = true) || it.equals("channel", ignoreCase = true) }
+            AddonDirectoryFilter.CATALOGS -> addon.resources.any { it.name == "catalog" }
+            AddonDirectoryFilter.STREAMS -> addon.resources.any { it.name == "stream" }
+            AddonDirectoryFilter.SUBTITLES -> addon.resources.any { it.name == "subtitles" }
+        }
+        val installed = addon.transportUrl in installedManifestUrls
         (includeAdult || !addon.behaviorHints.adult) &&
-            (filter.resourceName == null || addon.resources.any { it.name == filter.resourceName }) &&
+            matchesType &&
+            (installationFilter == AddonInstallationFilter.ALL ||
+                (installationFilter == AddonInstallationFilter.INSTALLED) == installed) &&
             (
                 normalizedQuery.isBlank() ||
                     addon.name.contains(normalizedQuery, ignoreCase = true) ||
@@ -42,6 +58,7 @@ internal fun filterAddonDirectory(
                     addon.id.contains(normalizedQuery, ignoreCase = true)
                 )
     }
+    return if (alphabetical) filtered.sortedBy { it.name.lowercase() } else filtered
 }
 
 internal object AddonDirectoryParser {

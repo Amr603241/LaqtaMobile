@@ -3,6 +3,17 @@
     <string name="subtitle_search_addons">البحث في إضافات الترجمة</string>
     <string name="subtitle_add_from_url">إضافة من رابط</string>
     <string name="subtitle_import_from_device">اختيار ملف ترجمة</string>
+    <string name="subtitle_added">تمت إضافة الترجمة</string>
+    <string name="addons_filter_movies">أفلام</string>
+    <string name="addons_filter_series">مسلسلات</string>
+    <string name="addons_filter_anime">أنمي</string>
+    <string name="addons_filter_live">بث مباشر</string>
+    <string name="addons_filter_not_installed">غير المثبتة</string>
+    <string name="addons_sort_directory">ترتيب الدليل</string>
+    <string name="addons_sort_alphabetical">أبجديًا</string>
+    <string name="addons_version">الإصدار %1$s</string>
+    <string name="details_copy_link">نسخ الرابط للمشاركة</string>
+    <string name="details_link_copied">تم نسخ الرابط</string>
     <string name="subtitle_url_dialog_title">إضافة ترجمة من رابط</string>
     <string name="subtitle_url_placeholder">رابط مباشر لملف الترجمة</string>
     <string name="subtitle_language_placeholder">رمز اللغة (مثال: ar أو en)</string>
@@ -495,6 +506,8 @@
     <string name="compose_player_outline_color">لون الحدود</string>
     <string name="compose_player_panel_episodes">الحلقات</string>
     <string name="compose_player_panel_sources">المصادر</string>
+    <string name="player_current_download_speed">سرعة تنزيل التشغيل الحالي: %1$s</string>
+    <string name="player_download_speed_unavailable">غير متاحة</string>
     <string name="compose_player_chapters">الفصول</string>
     <string name="compose_player_panel_chapters">الفصول (%1$d)</string>
     <string name="compose_player_chapter_number">الفصل %1$d</string>
